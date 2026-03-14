@@ -9,14 +9,7 @@
 import { Worker } from "bullmq";
 import { redisConnectionOptions, type PostPublishJobData, type DmReplyJobData } from "./client";
 import { postToX } from "@/lib/automation/x-poster";
-
-// ---- Helpers ----
-
-/** Random delay between min and max milliseconds (anti-ban) */
-async function humanDelay(minMs: number, maxMs: number): Promise<void> {
-  const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
-  await new Promise((resolve) => setTimeout(resolve, delay));
-}
+import { waitForRateLimit } from "@/lib/rate-limiter";
 
 // ---- post-publish worker ----
 
@@ -27,8 +20,8 @@ export const postPublishWorker = new Worker<PostPublishJobData>(
 
     console.log(`[post-publish] Processing job ${job.id} for postId=${postId}`);
 
-    // Anti-ban: random delay of 3–8 minutes before each publish action
-    await humanDelay(3 * 60_000, 8 * 60_000);
+    // Anti-ban: use PRD-specified 'post' action delay (3–8 min)
+    await waitForRateLimit("post");
 
     if (platform === "x") {
       await postToX({ accountId, content });
@@ -55,8 +48,8 @@ export const dmReplyWorker = new Worker<DmReplyJobData>(
 
     console.log(`[dm-reply] Processing job ${job.id} for dmId=${dmId}`);
 
-    // Anti-ban: random delay of 1–3 minutes before sending DM reply
-    await humanDelay(60_000, 3 * 60_000);
+    // Anti-ban: use 'dm' rate limit delay before replying
+    await waitForRateLimit("dm");
 
     // Platform-specific DM sending would be implemented here
     console.log(`[dm-reply] Would send DM to ${senderId} on ${platform}: "${replyContent}"`);
