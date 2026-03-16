@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { accounts, posts } from "@/db/schema";
+import { accounts, posts, concepts, promptTemplates, engagementRules } from "@/db/schema";
 import { eq, count, sql } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
@@ -12,22 +12,41 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Fetch stats in parallel
-  const [accountRows, statusCounts] = await Promise.all([
+  // Fetch stats and onboarding progress in parallel
+  const [
+    accountRows, 
+    statusCounts, 
+    conceptRows, 
+    promptRows, 
+    engagementRuleRows
+  ] = await Promise.all([
     db.select({ id: accounts.id, platform: accounts.platform, username: accounts.username, isActive: accounts.isActive })
-      .from(accounts)
-      .where(eq(accounts.tenantId, user.id))
-      .limit(5),
+      .from(accounts).where(eq(accounts.tenantId, user.id)).limit(5),
     db.select({ status: posts.status, count: count() })
-      .from(posts)
-      .where(eq(posts.tenantId, user.id))
-      .groupBy(posts.status),
+      .from(posts).where(eq(posts.tenantId, user.id)).groupBy(posts.status),
+    db.select({ id: concepts.id }).from(concepts).where(eq(concepts.tenantId, user.id)).limit(1),
+    db.select({ id: promptTemplates.id }).from(promptTemplates).where(eq(promptTemplates.tenantId, user.id)).limit(1),
+    db.select({ id: engagementRules.id }).from(engagementRules).where(eq(engagementRules.tenantId, user.id)).limit(1),
   ]);
 
   const totalPosts = statusCounts.reduce((s, r) => s + Number(r.count), 0);
   const pendingCount = statusCounts.find((r) => r.status === "pending_approval")?.count ?? 0;
   const publishedCount = statusCounts.find((r) => r.status === "published")?.count ?? 0;
   const activeAccounts = accountRows.filter((a) => a.isActive).length;
+
+  const hasConcept = conceptRows.length > 0;
+  const hasAccount = accountRows.length > 0;
+  const hasPrompt = promptRows.length > 0;
+  const hasEngagement = engagementRuleRows.length > 0;
+
+  const onboardingSteps = [
+    { title: "市場調査と設計", completed: hasConcept, href: "/research", desc: "AIによる市場分析とコンセプト作成" },
+    { title: "アカウント連携", completed: hasAccount, href: "/accounts", desc: "設計書通りのSNSアカウントを登録" },
+    { title: "プロンプト設定", completed: hasPrompt, href: "/templates", desc: "自動投稿用AIプロンプトの作成" },
+    { title: "エンゲージメント", completed: hasEngagement, href: "/growth", desc: "ターゲット自動いいね・リプライ設定" },
+  ];
+  const completedSteps = onboardingSteps.filter(s => s.completed).length;
+  const onboardingComplete = completedSteps === onboardingSteps.length;
 
   const maxRevenue = Math.max(...REVENUE_DATA);
 
@@ -45,6 +64,50 @@ export default async function DashboardPage() {
         <StatCard label="承認待ち投稿" value={Number(pendingCount)} icon="⏳" accent="amber" />
         <StatCard label="投稿済み" value={Number(publishedCount)} icon="🚀" accent="purple" />
       </div>
+
+      {/* Onboarding Checklist */}
+      {!onboardingComplete && (
+        <div className="bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border border-blue-500/20 rounded-2xl p-6 shadow-xl">
+          <div className="flex justify-between items-end mb-6">
+            <div>
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <span>🥷</span> Ninjaへの道 (セットアップ)
+              </h3>
+              <p className="text-xs text-neutral-400 mt-1">完全自動化システム稼働までのステップ</p>
+            </div>
+            <div className="text-right">
+              <span className="text-2xl font-black text-blue-400">{completedSteps}</span>
+              <span className="text-neutral-500 text-sm"> / 4</span>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {onboardingSteps.map((step, idx) => (
+              <a
+                key={idx}
+                href={step.href}
+                className={`flex gap-4 p-4 rounded-xl border transition-all ${
+                  step.completed 
+                    ? "bg-green-500/5 border-green-500/20 opacity-60 hover:opacity-100" 
+                    : "bg-neutral-900 border-neutral-700 hover:border-blue-500 hover:bg-neutral-800"
+                }`}
+              >
+                <div className={`mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center border text-xs ${
+                  step.completed ? "bg-green-500 border-green-400 text-black" : "border-neutral-600 text-neutral-500"
+                }`}>
+                  {step.completed ? "✓" : idx + 1}
+                </div>
+                <div>
+                  <div className={`font-semibold text-sm ${step.completed ? "text-green-400 line-through decoration-green-900" : "text-white"}`}>
+                    {step.title}
+                  </div>
+                  <div className="text-xs text-neutral-500 mt-1">{step.desc}</div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Revenue Trend */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">

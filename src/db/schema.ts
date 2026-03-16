@@ -9,14 +9,33 @@ export const tenants = pgTable("tenants", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// --- Concepts (AI Generated Account Blueprint) ---
+export const concepts = pgTable("concepts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(), // "x" or "instagram"
+  genre: text("genre").notNull(),
+  accountName: text("account_name").notNull(),
+  bio: text("bio").notNull(),
+  targetAudience: text("target_audience"),
+  hashtags: jsonb("hashtags"),
+  contentMix: jsonb("content_mix"), // { educational, affiliate, personal }
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // --- Accounts (Social Media Accounts for a Tenant) ---
 export const accounts = pgTable("accounts", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id")
     .notNull()
     .references(() => tenants.id, { onDelete: "cascade" }),
+  conceptId: uuid("concept_id")
+    .references(() => concepts.id, { onDelete: "set null" }),
   platform: text("platform").notNull(), // "x" or "instagram"
   username: text("username").notNull(),
+  warmingUpStage: text("warming_up_stage").default("1"), // "1": restrictive, "2": moderate, "3": full
   encryptedToken: text("encrypted_token"),
   proxyConfig: jsonb("proxy_config"),      // Store IPBurger/residential proxy info
   stealthFingerprint: jsonb("stealth_fingerprint"), // Appended fingerprint definition
@@ -70,4 +89,31 @@ export const promptTemplates = pgTable("prompt_templates", {
   platform: text("platform").notNull(), // "x" or "instagram"
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// --- Engagement Rules (Targeting & Limits) ---
+export const engagementRules = pgTable("engagement_rules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id")
+    .notNull()
+    .references(() => accounts.id, { onDelete: "cascade" }),
+  targetKeywords: jsonb("target_keywords"), // keywords to search for
+  competitorAccounts: jsonb("competitor_accounts"), // accounts whose followers to target
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// --- Engagement Logs (Anti-spam / Rate limiting tracking) ---
+export const engagementLogs = pgTable("engagement_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  accountId: uuid("account_id")
+    .notNull()
+    .references(() => accounts.id, { onDelete: "cascade" }),
+  targetUserId: text("target_user_id").notNull(), // the external user ID (X / IG)
+  actionType: text("action_type").notNull(), // "like", "reply", "follow"
+  actedAt: timestamp("acted_at").defaultNow().notNull(),
 });

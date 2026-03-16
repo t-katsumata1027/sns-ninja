@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 
 export default async function DashboardLayout({
   children,
@@ -23,6 +24,11 @@ export default async function DashboardLayout({
         <NavLink href="/accounts" icon="📱">Accounts</NavLink>
         <NavLink href="/posts" icon="📝">Posts</NavLink>
         <NavLink href="/templates" icon="🤖">AI Templates</NavLink>
+        <NavLink href="/research" icon="🔍">Market Research</NavLink>
+        
+        <div className="mt-auto pt-4 border-t border-neutral-800">
+          <LogoutButton isSidebar />
+        </div>
       </aside>
 
       {/* Main content */}
@@ -31,9 +37,9 @@ export default async function DashboardLayout({
       {/* Bottom Navigation (mobile only) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-neutral-900/95 backdrop-blur-sm border-t border-neutral-800 flex items-center z-50">
         <MobileNavLink href="/" icon="🏠" label="ホーム" />
-        <MobileNavLink href="/accounts" icon="📱" label="アカウント" />
-        <MobileNavLink href="/posts" icon="📝" label="投稿" />
-        <MobileNavLink href="/templates" icon="🤖" label="テンプレ" />
+        <MobileNavLink href="/research" icon="🔍" label="リサーチ" />
+        <MobileNavLink href="/accounts" icon="📱" label="連携" />
+        <LogoutButton />
       </nav>
     </div>
   );
