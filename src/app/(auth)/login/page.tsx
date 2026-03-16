@@ -1,6 +1,10 @@
 import { login, signup } from "./actions";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ message?: string }>;
+}) {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 px-4">
       <div className="w-full max-w-sm p-8 space-y-8 bg-neutral-900 rounded-2xl border border-neutral-800 shadow-[0_0_40px_rgba(0,0,0,0.5)]">
@@ -8,6 +12,14 @@ export default function LoginPage() {
           <h1 className="text-3xl font-bold tracking-tight text-white">SNS Ninja</h1>
           <p className="mt-2 text-sm text-neutral-400">Sign in to your account</p>
         </div>
+
+        {searchParams && (
+          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+            <p className="text-xs text-red-500 text-center">
+              {(await searchParams).message}
+            </p>
+          </div>
+        )}
         
         <form className="space-y-6">
           <div className="space-y-4">
