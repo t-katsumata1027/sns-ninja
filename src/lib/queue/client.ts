@@ -13,27 +13,39 @@ const redisConnectionOptions = {
 // Export for use in worker.ts
 export { redisConnectionOptions };
 
-// Queue for publishing posts to X / Instagram
-export const postPublishQueue = new Queue("post-publish", {
-  connection: redisConnectionOptions,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 60_000 }, // 1m → 2m → 4m
-    removeOnComplete: 100,
-    removeOnFail: 200,
-  },
-});
+// Lazy initializers to avoid connection attempts during build time
+let _postPublishQueue: Queue | null = null;
+let _dmReplyQueue: Queue | null = null;
 
-// Queue for sending DM replies
-export const dmReplyQueue = new Queue("dm-reply", {
-  connection: redisConnectionOptions,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 30_000 },
-    removeOnComplete: 100,
-    removeOnFail: 200,
-  },
-});
+export function getPostPublishQueue() {
+  if (!_postPublishQueue) {
+    _postPublishQueue = new Queue("post-publish", {
+      connection: redisConnectionOptions,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 60_000 },
+        removeOnComplete: 100,
+        removeOnFail: 200,
+      },
+    });
+  }
+  return _postPublishQueue;
+}
+
+export function getDmReplyQueue() {
+  if (!_dmReplyQueue) {
+    _dmReplyQueue = new Queue("dm-reply", {
+      connection: redisConnectionOptions,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 30_000 },
+        removeOnComplete: 100,
+        removeOnFail: 200,
+      },
+    });
+  }
+  return _dmReplyQueue;
+}
 
 export type PostPublishJobData = {
   postId: string;

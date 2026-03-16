@@ -3,7 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { db } from "@/db";
 import { posts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { postPublishQueue } from "@/lib/queue/client";
+import { getPostPublishQueue } from "@/lib/queue/client";
 
 // PATCH /api/posts/[id]/approve
 // HITL: Approve a pending_approval post, schedule it for publishing
@@ -51,7 +51,7 @@ export async function PATCH(
     .where(eq(posts.id, postId));
 
   // Enqueue the publish job with optional delay
-  await postPublishQueue.add(
+  await getPostPublishQueue().add(
     "publish",
     {
       postId,

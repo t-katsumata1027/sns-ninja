@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { dmMessages } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { analyzeIntent, generateDmReply } from "@/lib/ai/intent";
-import { dmReplyQueue } from "@/lib/queue/client";
+import { getDmReplyQueue } from "@/lib/queue/client";
 
 // POST /api/dm/[id]/reply
 // Analyze intent of a DM and queue an auto-reply
@@ -44,7 +44,7 @@ export async function POST(
     .where(eq(dmMessages.id, dmId));
 
   // 4. Enqueue the DM reply job (with anti-ban delay built into worker)
-  await dmReplyQueue.add("reply", {
+  await getDmReplyQueue().add("reply", {
     dmId,
     accountId: dm.accountId,
     tenantId: user.id,
