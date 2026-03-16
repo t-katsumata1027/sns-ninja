@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { accounts, engagementRules, engagementLogs } from "@/db/schema";
 import { eq, and, gt } from "drizzle-orm";
 
-const GEMINI_MODEL = "gemini-2.0-flash";
+const GEMINI_MODEL = "gemini-2.5-pro-preview-03-25";
 
 export async function runGrowthCycleForAccount(accountId: string) {
   // 1. Fetch account and active engagement rules
