@@ -12,5 +12,5 @@ jobs:
     steps:
       - name: Trigger Trend Update API
         run: |
-          curl -X GET "${{ secrets.APP_URL }}/api/cron/update-trends" \
+          curl -L -f -X GET "${{ secrets.APP_URL }}/api/cron/update-trends" \
           -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
