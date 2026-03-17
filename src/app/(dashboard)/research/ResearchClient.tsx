@@ -1,27 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   getGenreSuggestionsAction, 
   getMarketAnalysisAction, 
-  runResearchAction 
+  runResearchAction,
+  getTrendingKeywordsAction
 } from "./actions";
-import { MarketResearchResult, NicheSuggestion, MarketAnalysis } from "@/lib/ai/research";
+import { MarketResearchResult, NicheSuggestion, MarketAnalysis, TrendingKeyword } from "@/lib/ai/research";
 
 type Step = "input" | "suggest" | "analysis" | "final";
 
 export function ResearchClient() {
   const [step, setStep] = useState<Step>("input");
   const [loading, setLoading] = useState(false);
+  const [trendLoading, setTrendLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Data states
   const [keyword, setKeyword] = useState("");
   const [platform, setPlatform] = useState<"x" | "instagram">("x");
+  const [trendingKeywords, setTrendingKeywords] = useState<TrendingKeyword[]>([]);
   const [suggestions, setSuggestions] = useState<NicheSuggestion[]>([]);
   const [selectedGenre, setSelectedGenre] = useState<string>("");
   const [analysis, setAnalysis] = useState<MarketAnalysis | null>(null);
   const [result, setResult] = useState<MarketResearchResult | null>(null);
+
+  // Fetch trends on mount
+  useEffect(() => {
+    async function fetchTrends() {
+      setTrendLoading(true);
+      try {
+        const res = await getTrendingKeywordsAction();
+        if (res.success && res.data) {
+          setTrendingKeywords(res.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch trends", err);
+      } finally {
+        setTrendLoading(false);
+      }
+    }
+    fetchTrends();
+  }, []);
 
   // --- Step Handlers ---
 
@@ -113,50 +134,79 @@ export function ResearchClient() {
 
       {/* STEP 0: Input */}
       {step === "input" && (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-xl animate-in fade-in slide-in-from-bottom-4">
-          <form onSubmit={handleInitialSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-neutral-400 uppercase tracking-widest">
-                興味のある分野やキーワード
-              </label>
-              <input
-                type="text"
-                required
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                placeholder="例: ダイエット、AI、節約、副業"
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-5 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-white placeholder:text-neutral-600"
-              />
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+          {/* Trend Suggestions Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+              <span>🔥</span> AIが選ぶ今熱いキーワード
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+               {trendLoading ? (
+                 Array.from({ length: 4 }).map((_, i) => (
+                   <div key={i} className="h-20 bg-neutral-900 border border-neutral-800 rounded-xl animate-pulse" />
+                 ))
+               ) : (
+                 trendingKeywords.map((tk, i) => (
+                   <button
+                     key={i}
+                     onClick={() => setKeyword(tk.keyword)}
+                     className={`text-left p-4 rounded-xl border transition-all text-xs space-y-2 hover:scale-[1.02] active:scale-[0.98] ${keyword === tk.keyword ? "bg-blue-600/10 border-blue-500 shadow-lg shadow-blue-500/10" : "bg-neutral-900 border-neutral-800 hover:border-neutral-700"}`}
+                   >
+                     <div className="flex justify-between items-start">
+                       <span className="font-bold text-white leading-tight">{tk.keyword}</span>
+                     </div>
+                     <span className="block text-[10px] text-neutral-500 bg-neutral-950 px-1.5 py-0.5 rounded border border-neutral-800 w-fit">{tk.category}</span>
+                   </button>
+                 ))
+               )}
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-neutral-400 uppercase tracking-widest">
-                プラットフォーム
-              </label>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => setPlatform("x")}
-                  className={`py-4 rounded-xl border font-bold transition-all ${platform === "x" ? "bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/20" : "bg-neutral-950 text-neutral-500 border-neutral-800 hover:border-neutral-700"}`}
-                >
-                  X (Twitter)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPlatform("instagram")}
-                  className={`py-4 rounded-xl border font-bold transition-all ${platform === "instagram" ? "bg-pink-600 text-white border-pink-500 shadow-lg shadow-pink-500/20" : "bg-neutral-950 text-neutral-500 border-neutral-800 hover:border-neutral-700"}`}
-                >
-                  Instagram
-                </button>
+          </div>
+
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-xl">
+            <form onSubmit={handleInitialSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-neutral-400 uppercase tracking-widest">
+                  興味のある分野やキーワード
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  placeholder="例: ダイエット、AI、節約、副業"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-5 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-white placeholder:text-neutral-600"
+                />
               </div>
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-white text-black hover:bg-neutral-200 font-black py-5 rounded-2xl transition-all disabled:opacity-50 text-xl shadow-2xl"
-            >
-              {loading ? "AIがアイデアを深掘り中..." : "収益化のヒントを探す →"}
-            </button>
-          </form>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-neutral-400 uppercase tracking-widest">
+                  プラットフォーム
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setPlatform("x")}
+                    className={`py-4 rounded-xl border font-bold transition-all ${platform === "x" ? "bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/20" : "bg-neutral-950 text-neutral-500 border-neutral-800 hover:border-neutral-700"}`}
+                  >
+                    X (Twitter)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPlatform("instagram")}
+                    className={`py-4 rounded-xl border font-bold transition-all ${platform === "instagram" ? "bg-pink-600 text-white border-pink-500 shadow-lg shadow-pink-500/20" : "bg-neutral-950 text-neutral-500 border-neutral-800 hover:border-neutral-700"}`}
+                  >
+                    Instagram
+                  </button>
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-white text-black hover:bg-neutral-200 font-black py-5 rounded-2xl transition-all disabled:opacity-50 text-xl shadow-2xl"
+              >
+                {loading ? "AIがアイデアを深掘り中..." : "収益化のヒントを探す →"}
+              </button>
+            </form>
+          </div>
         </div>
       )}
 
@@ -188,7 +238,6 @@ export function ResearchClient() {
                     </span>
                   </span>
                 </div>
-                {/* Micro chart logic can go here */}
                 <div className="absolute bottom-0 left-0 h-1 bg-blue-500 opacity-0 group-hover:opacity-100 transition-all" style={{ width: `${s.profitabilityScore}%` }} />
               </button>
             ))}
@@ -209,11 +258,11 @@ export function ResearchClient() {
                       <span>📉</span> トレンド推移 (AI予測)
                     </h4>
                     <svg viewBox="0 0 100 30" className="w-full h-24 overflow-visible">
-                      <path d="M0 25 Q 10 20, 20 22 T 40 10 T 60 15 T 80 5 T 100 2" fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="100" className="animate-[dash_2s_ease-out_forwards]" />
+                      <path d="M0 25 Q 10 20, 20 22 T 40 10 T 60 15 T 80 5 T 100 2" fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="100" className="animate-[dash_2s_ease-out_forwards]" strokeDashoffset="0" />
                       <circle cx="100" cy="2" r="2" fill="#3b82f6" className="animate-pulse" />
                     </svg>
                     <div className="flex flex-wrap gap-2">
-                       {analysis.trends.map(t => <span key={t} className="text-xs text-neutral-300 bg-white/5 px-2 py-1 rounded-lg border border-white/10">{t}</span>)}
+                       {analysis.trends.map((t, i) => <span key={i} className="text-xs text-neutral-300 bg-white/5 px-2 py-1 rounded-lg border border-white/10">{t}</span>)}
                     </div>
                   </div>
                   <div className="space-y-6">
@@ -239,15 +288,14 @@ export function ResearchClient() {
         </div>
       )}
 
-      {/* STEP 3: Final Result (Reusing old components but in context) */}
+      {/* STEP 3: Final Result */}
       {step === "final" && result && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
-           {/* All the existing result cards go here... */}
            <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-3xl p-8 text-white relative overflow-hidden shadow-2xl">
               <div className="relative z-10 text-center py-6">
                 <span className="text-xs font-bold uppercase tracking-widest bg-white/20 px-3 py-1 rounded-full backdrop-blur-md">Research Complete</span>
                 <h3 className="text-4xl font-black mt-4">勝ち筋が見つかりました</h3>
-                <p className="mt-2 text-emerald-100 italic">あなたの「ニキビ跡改善」発信は、3ヶ月以内に1万フォロワーを狙えるポテンシャルがあります。</p>
+                <p className="mt-2 text-emerald-100 italic">あなたのアカウント設計が完了しました。次は詳細設定に移りましょう。</p>
               </div>
            </div>
 

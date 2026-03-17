@@ -1,11 +1,21 @@
 "use server";
 
-import { performMarketResearch, suggestGenres, analyzeMarket } from "@/lib/ai/research";
+import { performMarketResearch, suggestGenres, analyzeMarket, getTrendingKeywords } from "@/lib/ai/research";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { concepts } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 import { ensureTenant } from "@/lib/db/tenant";
+
+export async function getTrendingKeywordsAction() {
+  try {
+    const keywords = await getTrendingKeywords();
+    return { success: true, data: keywords };
+  } catch (error: any) {
+    console.error("Trending Keywords Error:", error);
+    return { success: false, error: error.message };
+  }
+}
 
 export async function getGenreSuggestionsAction(keyword: string) {
   try {

@@ -38,6 +38,43 @@ export interface MarketResearchResult {
   };
 }
 
+export interface TrendingKeyword {
+  keyword: string;
+  category: string;
+  trendScore: number; // 0-100
+  description: string;
+}
+
+const TRENDING_KEYWORDS_PROMPT = `あなたはSNSアフィリエイトのトレンドアナリストです。
+今、XやInstagramで「個人が参入して収益化しやすい」かつ「トレンド性が高い」キーワードを8個提案してください。
+
+各提案には以下を含めてください：
+- キーワード
+- カテゴリ（美容、ガジェット、副業、ライフスタイル、教育など）
+- トレンドスコア (0-100)
+- 短い解説
+
+出力は必ず以下のJSON形式で行い、日本語で回答してください：
+[
+  { "keyword": "キーワード", "category": "カテゴリ", "trendScore": 95, "description": "解説" },
+  ...
+]`;
+
+export async function getTrendingKeywords(): Promise<TrendingKeyword[]> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY not set");
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: "gemini-3.1-flash-lite-preview",
+    systemInstruction: TRENDING_KEYWORDS_PROMPT,
+    generationConfig: { responseMimeType: "application/json" },
+  });
+
+  const result = await model.generateContent("最新のトレンドキーワードを提案してください。");
+  return JSON.parse(result.response.text()) as TrendingKeyword[];
+}
+
 const GENRE_SUGGESTION_PROMPT = `あなたはSNSアフィリエイトの市場分析のエキスパートです。
 ユーザーが入力したキーワードに基づき、今SNS（X/Instagram）で参入すべき「具体的に稼げるニッチジャンル」を5つ提案してください。
 
