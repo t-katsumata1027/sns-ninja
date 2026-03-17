@@ -117,3 +117,10 @@ export const engagementLogs = pgTable("engagement_logs", {
   actionType: text("action_type").notNull(), // "like", "reply", "follow"
   actedAt: timestamp("acted_at").defaultNow().notNull(),
 });
+
+// --- Trend Cache (Global cache for high-traffic data) ---
+export const trendCache = pgTable("trend_cache", {
+  id: text("id").primaryKey(), // e.g., "trending_keywords"
+  data: jsonb("data").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
