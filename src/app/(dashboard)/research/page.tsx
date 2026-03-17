@@ -1,13 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { runResearchAction } from "./actions";
 import { MarketResearchResult } from "@/lib/ai/research";
 
 export default function ResearchPage() {
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
   const [result, setResult] = useState<MarketResearchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const steps = [
+    "市場トレンドを調査中...",
+    "ターゲット層（ペルソナ）を設計中...",
+    "アカウントコンセプトを構築中...",
+    "運用・収益化戦略を最適化中...",
+    "最終的なリサーチ結果を調整中...",
+  ];
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (loading) {
+      setLoadingStep(0);
+      interval = setInterval(() => {
+        setLoadingStep((prev) => (prev < steps.length - 1 ? prev + 1 : prev));
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [loading]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -71,13 +91,36 @@ export default function ResearchPage() {
         </form>
       </div>
 
-      {error && (
+      {loading && (
+        <div className="bg-neutral-900 border border-blue-500/20 rounded-2xl p-8 flex flex-col items-center justify-center space-y-6 shadow-xl animate-in fade-in zoom-in duration-300">
+          <div className="relative w-20 h-20">
+             <div className="absolute inset-0 border-4 border-blue-500/20 rounded-full" />
+             <div className="absolute inset-0 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+          <div className="space-y-4 w-full max-w-xs text-center">
+            <p className="text-blue-400 font-bold animate-pulse">{steps[loadingStep]}</p>
+            <div className="flex justify-between gap-1 h-1">
+              {steps.map((_, i) => (
+                <div 
+                  key={i} 
+                  className={`flex-1 rounded-full transition-all duration-500 ${
+                    i <= loadingStep ? "bg-blue-500" : "bg-neutral-800"
+                  }`} 
+                />
+              ))}
+            </div>
+          </div>
+          <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-black">AI Market Analysis in Progress</p>
+        </div>
+      )}
+
+      {error && !loading && (
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-sm">
           ⚠️ {error}
         </div>
       )}
 
-      {result && (
+      {result && !loading && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
           {/* Concept Header */}
           <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-8 text-white relative overflow-hidden shadow-2xl">
