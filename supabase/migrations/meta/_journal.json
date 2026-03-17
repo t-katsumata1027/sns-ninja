@@ -15,6 +15,13 @@
       "when": 1773754220807,
       "tag": "0001_lying_the_executioner",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773787121803,
+      "tag": "0002_talented_hannibal_king",
+      "breakpoints": true
     }
   ]
 }

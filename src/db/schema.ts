@@ -22,6 +22,11 @@ export const concepts = pgTable("concepts", {
   targetAudience: text("target_audience"),
   hashtags: jsonb("hashtags"),
   contentMix: jsonb("content_mix"), // { educational, affiliate, personal }
+  productUrl: text("product_url"),
+  useHashtags: boolean("use_hashtags").default(true),
+  suggestedHashtags: jsonb("suggested_hashtags"),
+  footerText: text("footer_text"),
+  personality: text("personality"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

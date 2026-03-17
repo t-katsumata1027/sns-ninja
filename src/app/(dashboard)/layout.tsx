@@ -25,6 +25,7 @@ export default async function DashboardLayout({
         <NavLink href="/posts" icon="📝">Posts</NavLink>
         <NavLink href="/templates" icon="🤖">AI Templates</NavLink>
         <NavLink href="/research" icon="🔍">Market Research</NavLink>
+        <NavLink href="/settings/product-growth" icon="⚙️">Product Growth</NavLink>
         
         <div className="mt-auto pt-4 border-t border-neutral-800">
           <LogoutButton isSidebar />
