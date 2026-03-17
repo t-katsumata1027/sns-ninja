@@ -1,12 +1,31 @@
 "use server";
 
-import { performMarketResearch } from "@/lib/ai/research";
+import { performMarketResearch, suggestGenres, analyzeMarket } from "@/lib/ai/research";
 import { revalidatePath } from "next/cache";
-
 import { db } from "@/db";
 import { concepts } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 import { ensureTenant } from "@/lib/db/tenant";
+
+export async function getGenreSuggestionsAction(keyword: string) {
+  try {
+    const suggestions = await suggestGenres(keyword);
+    return { success: true, data: suggestions };
+  } catch (error: any) {
+    console.error("Genre Suggestion Error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getMarketAnalysisAction(genre: string, platform: string) {
+  try {
+    const analysis = await analyzeMarket(genre, platform);
+    return { success: true, data: analysis };
+  } catch (error: any) {
+    console.error("Market Analysis Error:", error);
+    return { success: false, error: error.message };
+  }
+}
 
 export async function runResearchAction(formData: FormData) {
   const genre = formData.get("genre") as string;
@@ -36,10 +55,9 @@ export async function runResearchAction(formData: FormData) {
       contentMix: result.strategy.contentMix,
     }).returning({ id: concepts.id });
 
-    // Optional: add the concept ID to the returned data so UI can link it
     const enhancedResult = { ...result, dbId: inserted.id };
 
-    revalidatePath("/(dashboard)", "layout"); // Revalidate dashboard to update checklist
+    revalidatePath("/(dashboard)", "layout");
     
     return { success: true, data: enhancedResult };
   } catch (error: any) {
