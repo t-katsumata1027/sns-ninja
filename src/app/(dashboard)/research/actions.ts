@@ -23,30 +23,31 @@ export async function getTrendingKeywordsAction() {
     
     // 2. If valid and FRESH cache exists, return it instantly
     if (cached && (now - cached.updatedAt.getTime() < FRESH_TTL_MS)) {
-      console.log("Returning fresh cached trending keywords");
-      return { 
-        success: true, 
-        data: cached.data as any, 
-        updatedAt: cached.updatedAt.toISOString() 
-      };
+      const data = cached.data as any[];
+      if (data && data.length > 0) {
+        console.log("Returning fresh cached trending keywords");
+        return { 
+          success: true, 
+          data, 
+          updatedAt: cached.updatedAt.toISOString() 
+        };
+      }
     }
 
     // 3. If cache is STALE but usable, or missing
     if (cached) {
-      console.log("Cache is stale, returning it but triggering background refresh...");
-      // In a real production environment with Vercel, we'd use waitUntil(refreshCache())
-      // Here we will try to fetch AI now but with a shorter path if it's the very first time.
-      // If we already have cached data, we return it to UNBLOCK the user.
-      
-      // Kick off background refresh (don't await)
-      refreshCache().catch(err => console.error("Background refresh failed:", err));
-      
-      return { 
-        success: true, 
-        data: cached.data as any, 
-        updatedAt: cached.updatedAt.toISOString(),
-        isStale: true 
-      };
+      const data = cached.data as any[];
+      if (data && data.length > 0) {
+        console.log("Cache is stale, returning it but triggering background refresh...");
+        refreshCache().catch(err => console.error("Background refresh failed:", err));
+        
+        return { 
+          success: true, 
+          data, 
+          updatedAt: cached.updatedAt.toISOString(),
+          isStale: true 
+        };
+      }
     }
 
     // 4. ABSOLUTE FALLBACK (If no cache at all)

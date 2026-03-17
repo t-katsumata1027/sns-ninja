@@ -138,15 +138,48 @@ export async function performMarketResearch(
   genre: string,
   platform: "x" | "instagram"
 ): Promise<MarketResearchResult> {
-  // Keeping this for backward compatibility or as a final step
   const apiKey = process.env.GEMINI_API_KEY;
   const genAI = new GoogleGenerativeAI(apiKey!);
   const model = genAI.getGenerativeModel({
     model: "gemini-3.1-flash-lite-preview",
-    systemInstruction: `SNS運用のプロとして、「${genre}」の完全なアカウント設計図をJSONで出力してください。`, // Reduced for brevity in this replace call
+    systemInstruction: `あなたはSNS運用のプロフェッショナルです。
+「${genre}」というジャンルに対して、${platform}で収益化を最大化するための完全なアカウント設計図をJSONで出力してください。
+
+出力形式：
+{
+  "concept": {
+    "name": "アカウント名",
+    "description": "アカウントの全体像",
+    "bio": "魅力的なプロフィール文",
+    "identity": "発信者のキャラクター設定"
+  },
+  "strategy": {
+    "targetAudience": "ターゲット層の詳細",
+    "contentMix": {
+      "educational": 50,
+      "affiliate": 30,
+      "personal": 20
+    },
+    "hashtags": ["タグ1", "タグ2"],
+    "recommendedProducts": ["アフィリエイト対象商品例"]
+  },
+  "growth": {
+    "keywords": ["検索KW1"],
+    "competitorKeywords": ["競合KW1"],
+    "engagementStrategy": "初期のファン獲得戦略"
+  }
+}
+必ず日本語で回答し、数値（contentMix）の合計は100にしてください。`,
     generationConfig: { responseMimeType: "application/json" },
   });
 
-  const result = await model.generateContent("リサーチを開始");
-  return JSON.parse(result.response.text());
+  const result = await model.generateContent("最良のアカウント設計図を生成してください。");
+  const data = JSON.parse(result.response.text()) as MarketResearchResult;
+  
+  // Defensive check
+  if (!data.concept || !data.concept.name) {
+    throw new Error("AIの応答が不完全です。もう一度お試しください。");
+  }
+  
+  return data;
 }
