@@ -105,8 +105,8 @@ function SNSMockup({ platform, concept, strategy }: { platform: "x" | "instagram
       <div className="pt-12 px-5 pb-6 space-y-3">
         <div className="flex justify-between items-start">
            <div>
-             <h4 className="font-black text-xl">{concept.name}</h4>
-             <p className="text-neutral-500 text-sm">@{concept.name.toLowerCase().replace(/\s+/g, '_')}</p>
+             <h4 className="font-black text-xl">{concept?.name || "Account Name"}</h4>
+             <p className="text-neutral-500 text-sm">@{concept?.name?.toLowerCase().replace(/\s+/g, '_') || "handle"}</p>
            </div>
            <button className="bg-white text-black px-4 py-1.5 rounded-full text-sm font-bold">Follow</button>
         </div>

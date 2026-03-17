@@ -13,51 +13,41 @@ const FRESH_TTL_MS = 1 * 60 * 60 * 1000; // 1 hour is "fresh"
 const STALE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours is "stale but usable"
 
 export async function getTrendingKeywordsAction() {
+  console.log("getTrendingKeywordsAction started");
   try {
-    // 1. Try to get from database cache
     const cached = await db.query.trendCache.findFirst({
       where: eq(trendCache.id, TREND_CACHE_ID),
     });
 
     const now = new Date().getTime();
+    console.log("Cache check:", { exists: !!cached, updatedAt: cached?.updatedAt });
     
-    // 2. If valid and FRESH cache exists, return it instantly
     if (cached && (now - cached.updatedAt.getTime() < FRESH_TTL_MS)) {
       const data = cached.data as any[];
-      if (data && data.length > 0) {
-        console.log("Returning fresh cached trending keywords");
-        return { 
-          success: true, 
-          data, 
-          updatedAt: cached.updatedAt.toISOString() 
-        };
+      if (Array.isArray(data) && data.length > 0) {
+        console.log("Returning fresh cached trends:", data.length, "items");
+        return { success: true, data, updatedAt: cached.updatedAt.toISOString() };
       }
+      console.log("Cache exists but data is invalid or empty array");
     }
 
-    // 3. If cache is STALE but usable, or missing
     if (cached) {
       const data = cached.data as any[];
-      if (data && data.length > 0) {
-        console.log("Cache is stale, returning it but triggering background refresh...");
+      if (Array.isArray(data) && data.length > 0) {
+        console.log("Cache is stale, returning and refreshing in background...");
         refreshCache().catch(err => console.error("Background refresh failed:", err));
-        
-        return { 
-          success: true, 
-          data, 
-          updatedAt: cached.updatedAt.toISOString(),
-          isStale: true 
-        };
+        return { success: true, data, updatedAt: cached.updatedAt.toISOString(), isStale: true };
       }
     }
 
-    // 4. ABSOLUTE FALLBACK (If no cache at all)
-    console.log("No cache found. Fetching initial data...");
+    console.log("Fetching new trending keywords from AI...");
     try {
       const keywords = await getTrendingKeywords();
+      console.log("AI returned keywords:", Array.isArray(keywords) ? keywords.length : "Not an array");
       await updateCache(keywords);
       return { success: true, data: keywords, updatedAt: new Date().toISOString() };
     } catch (aiError) {
-      console.error("AI Fetch Error for Initial Trends:", aiError);
+      console.error("AI Fetch Error for Trends:", aiError);
       const fallbacks = [
         { keyword: "AI時短術", category: "テック", trendScore: 98, description: "話題のAIツール活用法" },
         { keyword: "QoL向上家電", category: "ライフスタイル", trendScore: 92, description: "生活を豊かにするガジェット" },
@@ -67,19 +57,14 @@ export async function getTrendingKeywordsAction() {
       return { success: true, data: fallbacks, updatedAt: new Date().toISOString(), isFallback: true };
     }
   } catch (error: any) {
-    console.error("Trending Keywords Error:", error);
+    console.error("Trending Keywords Top Level Error:", error);
     return { success: false, error: error.message };
   }
 }
 
-// Helper to refresh cache in background
-async function refreshCache() {
-  const keywords = await getTrendingKeywords();
-  await updateCache(keywords);
-}
-
-// Helper to update DB
+// ... helper updates with logs ...
 async function updateCache(keywords: any) {
+  console.log("Updating trend_cache in DB...");
   await db.insert(trendCache).values({
     id: TREND_CACHE_ID,
     data: keywords,
@@ -93,29 +78,10 @@ async function updateCache(keywords: any) {
   });
 }
 
-export async function getGenreSuggestionsAction(keyword: string) {
-  try {
-    const suggestions = await suggestGenres(keyword);
-    return { success: true, data: suggestions };
-  } catch (error: any) {
-    console.error("Genre Suggestion Error:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-export async function getMarketAnalysisAction(genre: string, platform: string) {
-  try {
-    const analysis = await analyzeMarket(genre, platform);
-    return { success: true, data: analysis };
-  } catch (error: any) {
-    console.error("Market Analysis Error:", error);
-    return { success: false, error: error.message };
-  }
-}
-
 export async function runResearchAction(formData: FormData) {
   const genre = formData.get("genre") as string;
   const platform = formData.get("platform") as "x" | "instagram";
+  console.log("runResearchAction started:", { genre, platform });
 
   if (!genre) throw new Error("ジャンルを入力してください");
 
@@ -123,13 +89,20 @@ export async function runResearchAction(formData: FormData) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Unauthorized");
+    console.log("User identified:", user.id);
 
-    // Ensure tenant exists in DB for foreign key constraints
     await ensureTenant(user.id, user.email);
 
+    console.log("Calling performMarketResearch...");
     const result = await performMarketResearch(genre, platform);
+    console.log("Research AI result received:", !!result.concept);
 
-    // Save to database
+    if (!result.concept || !result.concept.name) {
+      console.error("Critical AI Structure Failure:", result);
+      throw new Error("AIの設計図生成が不完全です（名前が見つかりません）。もう一度お試しください。");
+    }
+
+    console.log("Inserting concept into DB...");
     const [inserted] = await db.insert(concepts).values({
       tenantId: user.id,
       platform,
@@ -142,12 +115,47 @@ export async function runResearchAction(formData: FormData) {
     }).returning({ id: concepts.id });
 
     const enhancedResult = { ...result, dbId: inserted.id };
-
     revalidatePath("/(dashboard)", "layout");
+    console.log("Research Action successful:", inserted.id);
     
     return { success: true, data: enhancedResult };
   } catch (error: any) {
-    console.error("Research Action Error:", error);
+    console.error("Research Action Final Error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function refreshCache() {
+  console.log("refreshCache: Triggering background AI fetch...");
+  try {
+    const keywords = await getTrendingKeywords();
+    await updateCache(keywords);
+    console.log("refreshCache: Background update successful");
+  } catch (err) {
+    console.error("refreshCache: Background update failed:", err);
+  }
+}
+
+export async function getGenreSuggestionsAction(keyword: string) {
+  console.log("getGenreSuggestionsAction started:", keyword);
+  try {
+    const suggestions = await suggestGenres(keyword);
+    console.log("Genre suggestions success:", suggestions.length);
+    return { success: true, data: suggestions };
+  } catch (error: any) {
+    console.error("Genre Suggestion Error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getMarketAnalysisAction(genre: string, platform: string) {
+  console.log("getMarketAnalysisAction started:", { genre, platform });
+  try {
+    const analysis = await analyzeMarket(genre, platform);
+    console.log("Market analysis success");
+    return { success: true, data: analysis };
+  } catch (error: any) {
+    console.error("Market Analysis Error:", error);
     return { success: false, error: error.message };
   }
 }

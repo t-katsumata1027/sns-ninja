@@ -78,7 +78,30 @@ export async function getTrendingKeywords(): Promise<TrendingKeyword[]> {
   });
 
   const result = await model.generateContent("最新のトレンドキーワードを提案してください。");
-  return JSON.parse(result.response.text()) as TrendingKeyword[];
+  const rawText = result.response.text();
+  console.log("Raw Trending Keywords AI Response:", rawText);
+  
+  let data: any;
+  try {
+    const jsonMatch = rawText.match(/```json\n([\s\S]*?)\n```/) || rawText.match(/\[[\s\S]*\]/) || rawText.match(/{[\s\S]*}/);
+    const cleanJson = jsonMatch ? jsonMatch[0] : rawText;
+    data = JSON.parse(cleanJson);
+  } catch (e) {
+    console.error("Trending Keywords JSON Parse Error:", e);
+    throw new Error("トレンドデータの解析に失敗しました。");
+  }
+
+  // Normalize if it's an object instead of array
+  if (!Array.isArray(data) && data.keywords && Array.isArray(data.keywords)) {
+    data = data.keywords;
+  }
+  
+  if (!Array.isArray(data)) {
+    console.error("Trending keywords is still not an array:", data);
+    return [];
+  }
+  
+  return data as TrendingKeyword[];
 }
 
 const GENRE_SUGGESTION_PROMPT = `あなたはSNSアフィリエイトの市場分析のエキスパートです。
@@ -118,7 +141,30 @@ export async function suggestGenres(keyword: string): Promise<NicheSuggestion[]>
   });
 
   const result = await model.generateContent(`キーワード: ${keyword}`);
-  return JSON.parse(result.response.text()) as NicheSuggestion[];
+  const rawText = result.response.text();
+  console.log("Raw Genre Suggestion AI Response:", rawText);
+
+  let data: any;
+  try {
+    const jsonMatch = rawText.match(/```json\n([\s\S]*?)\n```/) || rawText.match(/\[[\s\S]*\]/) || rawText.match(/{[\s\S]*}/);
+    const cleanJson = jsonMatch ? jsonMatch[0] : rawText;
+    data = JSON.parse(cleanJson);
+  } catch (e) {
+    console.error("Genre Suggestion JSON Parse Error:", e);
+    throw new Error("ジャンル提案の解析に失敗しました。");
+  }
+
+  // Normalize
+  if (!Array.isArray(data) && data.genres && Array.isArray(data.genres)) {
+    data = data.genres;
+  }
+  
+  if (!Array.isArray(data)) {
+    console.error("Genre suggestions is not an array:", data);
+    return [];
+  }
+
+  return data as NicheSuggestion[];
 }
 
 export async function analyzeMarket(genre: string, platform: string): Promise<MarketAnalysis> {
@@ -131,7 +177,17 @@ export async function analyzeMarket(genre: string, platform: string): Promise<Ma
   });
 
   const result = await model.generateContent("分析を開始してください。");
-  return JSON.parse(result.response.text()) as MarketAnalysis;
+  const rawText = result.response.text();
+  console.log("Raw Market Analysis AI Response:", rawText);
+
+  try {
+    const jsonMatch = rawText.match(/```json\n([\s\S]*?)\n```/) || rawText.match(/{[\s\S]*}/);
+    const cleanJson = jsonMatch ? jsonMatch[0] : rawText;
+    return JSON.parse(cleanJson) as MarketAnalysis;
+  } catch (e) {
+    console.error("Market Analysis JSON Parse Error:", e);
+    throw new Error("市場分析の解析に失敗しました。");
+  }
 }
 
 export async function performMarketResearch(
@@ -174,11 +230,39 @@ export async function performMarketResearch(
   });
 
   const result = await model.generateContent("最良のアカウント設計図を生成してください。");
-  const data = JSON.parse(result.response.text()) as MarketResearchResult;
+  const rawText = result.response.text();
+  console.log("Raw AI Response (Market Research):", rawText);
   
-  // Defensive check
-  if (!data.concept || !data.concept.name) {
-    throw new Error("AIの応答が不完全です。もう一度お試しください。");
+  // Robust JSON extraction
+  let data: MarketResearchResult;
+  try {
+    // Extract JSON if AI wrapped it in markdown
+    const jsonMatch = rawText.match(/```json\n([\s\S]*?)\n```/) || rawText.match(/{[\s\S]*}/);
+    const cleanJson = jsonMatch ? jsonMatch[0] : rawText;
+    data = JSON.parse(cleanJson);
+  } catch (e) {
+    console.error("JSON Parse Error:", e);
+    throw new Error("AIの応答を解析できませんでした。内容を確認してください。");
+  }
+  
+  // Defensive check with normalized property access
+  if (!data.concept || (!data.concept.name && !(data as any).name)) {
+    console.error("Data missing concept.name. Actual keys:", Object.keys(data));
+    throw new Error("リサーチ結果のデータ構造が正しくありません。AIの生成を再試行してください。");
+  }
+
+  // Backup: if concept is flat in the root
+  if (!data.concept && (data as any).name) {
+    data = {
+      concept: {
+        name: (data as any).name,
+        description: (data as any).description || "",
+        bio: (data as any).bio || "",
+        identity: (data as any).identity || ""
+      },
+      strategy: data.strategy || { targetAudience: "", contentMix: { educational: 50, affiliate: 30, personal: 20 }, hashtags: [], recommendedProducts: [] },
+      growth: data.growth || { keywords: [], competitorKeywords: [], engagementStrategy: "" }
+    } as MarketResearchResult;
   }
   
   return data;
