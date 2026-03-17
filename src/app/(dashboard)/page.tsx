@@ -3,6 +3,7 @@ import { accounts, posts, concepts, promptTemplates, engagementRules } from "@/d
 import { eq, count, sql } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
+import { ensureTenant } from "@/lib/db/tenant";
 
 // Simple sparkline data for demo (revenue trend - would come from real analytics)
 const REVENUE_DATA = [320, 480, 410, 680, 590, 820, 940, 1050, 980, 1200, 1380, 1500];
@@ -11,6 +12,9 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  // Ensure tenant exists
+  await ensureTenant(user.id, user.email);
 
   // Fetch stats and onboarding progress in parallel
   const [

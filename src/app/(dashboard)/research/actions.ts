@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { concepts } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
+import { ensureTenant } from "@/lib/db/tenant";
 
 export async function runResearchAction(formData: FormData) {
   const genre = formData.get("genre") as string;
@@ -17,6 +18,9 @@ export async function runResearchAction(formData: FormData) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Unauthorized");
+
+    // Ensure tenant exists in DB for foreign key constraints
+    await ensureTenant(user.id, user.email);
 
     const result = await performMarketResearch(genre, platform);
 

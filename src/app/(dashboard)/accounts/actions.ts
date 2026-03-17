@@ -5,11 +5,15 @@ import { accounts } from "@/db/schema";
 import { encrypt } from "@/lib/crypto";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { ensureTenant } from "@/lib/db/tenant";
 
 export async function addAccount(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
+
+  // Ensure tenant exists in DB for foreign key constraints
+  await ensureTenant(user.id, user.email);
 
   const platform = formData.get("platform") as string;
   const username = formData.get("username") as string;
