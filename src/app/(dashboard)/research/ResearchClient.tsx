@@ -137,6 +137,7 @@ export function ResearchClient() {
   const [keyword, setKeyword] = useState("");
   const [platform, setPlatform] = useState<"x" | "instagram">("x");
   const [trendingKeywords, setTrendingKeywords] = useState<TrendingKeyword[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<NicheSuggestion[]>([]);
   const [selectedGenre, setSelectedGenre] = useState<string>("");
   const [analysis, setAnalysis] = useState<MarketAnalysis | null>(null);
@@ -149,6 +150,9 @@ export function ResearchClient() {
         const res = await getTrendingKeywordsAction();
         if (res.success && res.data) {
           setTrendingKeywords(res.data);
+          if (res.updatedAt) {
+            setLastUpdated(new Date(res.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+          }
         }
       } catch (err) {
         console.error("Failed to fetch trends", err);
@@ -253,7 +257,9 @@ export function ResearchClient() {
               <h3 className="text-xs font-black text-neutral-500 uppercase tracking-widest flex items-center gap-2">
                 <span>⚡</span> Trending Sparks
               </h3>
-              <p className="text-[10px] text-neutral-600 font-bold uppercase tracking-tight">Updated Real-time</p>
+              <p className="text-[10px] text-neutral-600 font-bold uppercase tracking-tight">
+                {lastUpdated ? `Last updated: ${lastUpdated}` : "Updated Real-time"}
+              </p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                {trendLoading ? (
