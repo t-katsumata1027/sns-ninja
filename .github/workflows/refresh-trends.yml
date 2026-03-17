@@ -1,0 +1,16 @@
+name: Refresh Trending Keywords
+
+on:
+  schedule:
+    # 6時間おきに実行 (0:00, 6:00, 12:00, 18:00 UTC)
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # 手動実行も可能にする
+
+jobs:
+  refresh-trends:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Trend Update API
+        run: |
+          curl -X GET "${{ secrets.APP_URL }}/api/cron/update-trends" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
