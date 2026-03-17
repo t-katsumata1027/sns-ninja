@@ -26,7 +26,7 @@ export async function analyzeIntent(message: string): Promise<IntentAnalysisResu
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-pro-preview-03-25",
+    model: "gemini-3.1-flash-lite-preview",
     systemInstruction: INTENT_SYSTEM_PROMPT,
     generationConfig: { temperature: 0.1, maxOutputTokens: 128 },
   });

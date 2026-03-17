@@ -62,7 +62,7 @@ export async function performMarketResearch(
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-pro-preview-03-25", // Using Pro for better generation
+    model: "gemini-3.1-flash-lite-preview", // Using Flash-Lite for better speed and cost
     systemInstruction: RESEARCH_SYSTEM_PROMPT,
     generationConfig: { 
       temperature: 0.8, 

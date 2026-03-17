@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI, type GenerationConfig } from "@google/generative-ai";
 
-const GEMINI_MODEL = "gemini-2.5-pro-preview-03-25";
+const GEMINI_MODEL = "gemini-3.1-flash-lite-preview";
 
 function getGenAI(): GoogleGenerativeAI {
   const apiKey = process.env.GEMINI_API_KEY;

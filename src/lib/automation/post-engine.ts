@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { accounts, concepts, posts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-const GEMINI_MODEL = "gemini-2.5-pro-preview-03-25"; // Advanced reasoning for better copy
+const GEMINI_MODEL = "gemini-3.1-flash-lite-preview"; // Optimized for cost and speed
 
 type PostCategory = "educational" | "affiliate" | "personal";
 
