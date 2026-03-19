@@ -33,10 +33,14 @@ export const postPublishWorker = new Worker<PostPublishJobData>(
       // Anti-ban: use PRD-specified 'post' action delay (3–8 min)
       await waitForRateLimit("post");
 
+      // Fetch from DB to get mediaUrls (required for Instagram)
+      const [post] = await db.select().from(posts).where(eq(posts.id, postId)).limit(1);
+      const imageUrl = post?.mediaUrls ? (post.mediaUrls as string[])[0] : undefined;
+
       if (platform === "x") {
         await postToX({ accountId, content });
       } else if (platform === "instagram") {
-        await postToInstagram({ accountId, content });
+        await postToInstagram({ accountId, content, imageUrl });
       }
 
       // Update post status to published

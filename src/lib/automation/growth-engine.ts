@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { accounts, engagementRules, engagementLogs } from "@/db/schema";
 import { eq, and, gt } from "drizzle-orm";
 import { engageWithKeywordsOnX } from "@/lib/automation/x-poster";
-// If you implement instagram, you can import engageWithKeywordsOnInstagram here
+import { engageWithKeywordsOnInstagram } from "@/lib/automation/instagram-poster";
 
 export async function runGrowthCycleForAccount(accountId: string) {
   // ... (rest of the function remains the same until step 5)
@@ -57,6 +57,16 @@ export async function runGrowthCycleForAccount(accountId: string) {
       console.error(`Fatal error in X engagement cycle for @${account.username}:`, err.message);
     }
   } else if (account.platform === "instagram") {
-    console.log(`Instagram growth engine not fully converted to Playwright yet. Skipping.`);
+    try {
+      const actionsDone = await engageWithKeywordsOnInstagram({
+        accountId: account.id,
+        keywords: keywords.filter(k => k.trim().length > 0),
+        maxActions: maxActionsPerCycle,
+        contactedUsers
+      });
+      console.log(`Growth cycle complete for @${account.username}. Engaged with ${actionsDone} targets on Instagram.`);
+    } catch (err: any) {
+      console.error(`Fatal error in IG engagement cycle for @${account.username}:`, err.message);
+    }
   }
 }
