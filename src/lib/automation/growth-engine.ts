@@ -1,11 +1,10 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "@/db";
 import { accounts, engagementRules, engagementLogs } from "@/db/schema";
 import { eq, and, gt } from "drizzle-orm";
-
-const GEMINI_MODEL = "gemini-3.1-flash-lite-preview";
+import { generateContextAwareReply } from "@/lib/ai/gemini";
 
 export async function runGrowthCycleForAccount(accountId: string) {
+  // ... (rest of the function remains the same until step 5)
   // 1. Fetch account and active engagement rules
   const [account] = await db.select().from(accounts).where(eq(accounts.id, accountId));
   if (!account || !account.isActive) {
@@ -77,28 +76,4 @@ export async function runGrowthCycleForAccount(accountId: string) {
   }
 
   console.log(`Growth cycle complete for ${account.username}. Engaged with ${newTargets.length} targets.`);
-}
-
-async function generateContextAwareReply(targetPostContent: string, myAccountName: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY not set");
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL, generationConfig: { temperature: 0.7 } });
-
-  const prompt = `
-あなたは「${myAccountName}」という名前のアカウントを運用している人間です。
-以下のSNSの投稿に対して、単なる相槌や絵文字だけでなく、人間味があり、相手が喜んだり感心するような文脈にあった「リプライ（返信）」を生成してください。
-
-【対象の投稿内容】
-"${targetPostContent}"
-
-条件：
-- 文字数は短め（50文字前後）。
-- ハッシュタグは使わない。
-- 商品の売り込みや宣伝は絶対にしない。
-- 完全に自然な日本語で。
-  `;
-
-  const result = await model.generateContent(prompt);
-  return result.response.text().trim();
 }

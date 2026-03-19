@@ -80,28 +80,62 @@ export async function postToX({ accountId, content }: PostToXOptions): Promise<v
     // Navigate to home after cookie injection
     await page.goto("https://x.com/home", { waitUntil: "networkidle" });
 
+    // Use human behavior utilities
+    const { humanType, randomWait, smoothMoveAndClick } = await import("./human-behavior");
+
     // Click "What's happening?" tweet input
-    const tweetInput = page.locator('[data-testid="tweetTextarea_0"]').first();
-    await tweetInput.click();
+    await smoothMoveAndClick(page, '[data-testid="tweetTextarea_0"]');
 
-    // Human-like typing: type each character with random delay
-    for (const char of content) {
-      await tweetInput.pressSequentially(char, {
-        delay: Math.floor(Math.random() * 100) + 50, // 50-150ms per character
-      });
-    }
+    // Human-like typing
+    await humanType(page, '[data-testid="tweetTextarea_0"]', content);
 
-    // Short pause before clicking post (human-like)
-    await page.waitForTimeout(Math.floor(Math.random() * 2000) + 1000);
+    // Short pause before clicking post
+    await randomWait(1000, 3000);
 
     // Click the Post button
-    const postButton = page.locator('[data-testid="tweetButton"]').first();
-    await postButton.click();
+    await smoothMoveAndClick(page, '[data-testid="tweetButton"]');
 
     // Wait for confirmation
     await page.waitForTimeout(3000);
 
     console.log(`[x-poster] Successfully posted for account ${accountId}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+/**
+ * Send a Direct Message on X.
+ */
+export async function sendDmToX({ accountId, targetUserId, content }: { accountId: string; targetUserId: string; content: string }): Promise<void> {
+  const [account] = await db.select().from(accounts).where(eq(accounts.id, accountId)).limit(1);
+  if (!account || !account.encryptedToken) throw new Error(`Account ${accountId} not configured`);
+
+  const proxy = account.proxyConfig ? parseProxyConfig(account.proxyConfig) : null;
+  const browserArgs: any = { headless: true };
+  if (proxy) browserArgs.proxy = { server: buildProxyUrl(proxy) };
+
+  const browser = await chromium.launch(browserArgs);
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  try {
+    const token = await decrypt(account.encryptedToken);
+    await context.addCookies([{ name: "auth_token", value: token, domain: ".x.com", path: "/", httpOnly: true, secure: true }]);
+    
+    await page.goto(`https://x.com/messages/compose?recipient_id=${targetUserId}`, { waitUntil: "networkidle" });
+    
+    const { humanType, randomWait, smoothMoveAndClick } = await import("./human-behavior");
+    
+    const dmInputSelector = '[data-testid="dmCompoundAtMentionInput"], [data-testid="dmComposerTextInput"]';
+    await smoothMoveAndClick(page, dmInputSelector);
+    await humanType(page, dmInputSelector, content);
+    await randomWait(1000, 2000);
+    
+    await smoothMoveAndClick(page, '[data-testid="dmComposerSendButton"]');
+    await page.waitForTimeout(2000);
+    
+    console.log(`[x-poster] DM sent to ${targetUserId}`);
   } finally {
     await browser.close();
   }

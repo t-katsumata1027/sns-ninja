@@ -1,9 +1,7 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { env } from "@/lib/env";
 import { db } from "@/db";
 import { accounts, concepts, posts } from "@/db/schema";
 import { eq } from "drizzle-orm";
-
-const GEMINI_MODEL = "gemini-3.1-flash-lite-preview"; // Optimized for cost and speed
 
 type PostCategory = "educational" | "affiliate" | "personal";
 
@@ -48,18 +46,16 @@ export async function generateDailyPostsForAccount(accountId: string) {
   }
 
   // 4. Generate Posts
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY not set");
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL, generationConfig: { temperature: 0.9 } });
-
   const generatedPosts: string[] = [];
+  const { generatePost } = await import("@/lib/ai/gemini");
 
   for (const category of categoriesToGenerate) {
-    const prompt = buildHybridPrompt(account.platform, category, concept);
     try {
-      const result = await model.generateContent(prompt);
-      const text = result.response.text().trim();
+      const text = await generatePost({
+        platform: account.platform as "x" | "instagram",
+        category,
+        concept,
+      });
       generatedPosts.push(text);
       
       // Delay to avoid rate limiting
@@ -83,34 +79,4 @@ export async function generateDailyPostsForAccount(accountId: string) {
   return generatedPosts;
 }
 
-function buildHybridPrompt(platform: string, category: PostCategory, concept: any): string {
-  let categoryFocus = "";
-  if (category === "educational") {
-    categoryFocus = "読者に役立つ有益なノウハウや最新情報を共有する「有益投稿」を作成してください。商品の売り込みは絶対にしないでください。";
-  } else if (category === "affiliate") {
-    categoryFocus = "読者の悩みを解決する手段として、自然な流れで商品・サービス（ツールの紹介など）を提案する「アフィリエイト（収益化）投稿」を作成してください。過度な売り込み感を出さないこと。";
-  } else if (category === "personal") {
-    categoryFocus = "運用者の日常の気づきや価値観、失敗談などを共有し、読者と親近感を築く「属人性（パーソナル）投稿」を作成してください。";
-  }
-
-  const guidelines = platform === "x" 
-    ? "X（Twitter）向けに、140字以内で完結するよう短く、ハッシュタグは1〜2個にし、共感やリツイートを誘うようなパンチの効いた構成にしてください。" 
-    : "Instagram向けに、1枚目の画像を引き立てるようなキャッチーな1行目、詳細な本文、そして最後にハッシュタグを5〜10個つけてください。";
-
-  return `
-あなたはSNSマーケティングのプロです。以下の設定に従い、SNSの投稿文を作成してください。
-
-[アカウント設定]
-ジャンル: ${concept.genre}
-ターゲット層: ${concept.targetAudience}
-プロフィール文: ${concept.bio}
-頻繁に使うハッシュタグ: ${(concept.hashtags || []).join(", ")}
-
-[今回の投稿の目的]
-${categoryFocus}
-
-[プラットフォームの規約・ガイドライン]
-${guidelines}
-絶対に返答には投稿文のテキストのみを出力し、挨拶文や解説を含めないでください。
-  `.trim();
-}
+// Removed: logic moved to buildPrompt in gemini.ts

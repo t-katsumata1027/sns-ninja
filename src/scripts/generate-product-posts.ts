@@ -66,10 +66,7 @@ async function main() {
         const generatedContent = await generatePost({
           template: template.template,
           platform: template.platform as "x" | "instagram",
-          personality: concept.personality || undefined,
-          footerText: concept.footerText || undefined,
-          useHashtags: concept.useHashtags || false,
-          hashtags: concept.suggestedHashtags as string[] || [],
+          concept: concept,
           // context could be dynamic trendy keywords here, but for product growth the USP is in the template
           context: "Write naturally and engagingly. Ensure you do not sound like a generic bot.",
         });

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useTransition, useActionState } from "react";
+import { updateConcept, suggestHashtagsAction, type ActionResponse } from "@/app/(dashboard)/settings/product-growth/actions";
 
 interface Concept {
   id: string;
@@ -16,39 +17,36 @@ interface Concept {
 
 export function ProductGrowthForm({ initialConcept }: { initialConcept: Concept }) {
   const [concept, setConcept] = useState<Concept>(initialConcept);
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [suggesting, setSuggesting] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
-  const handleSave = async () => {
-    setLoading(true);
-    setMessage(null);
-    try {
-      const res = await fetch(`/api/concepts/${concept.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(concept),
-      });
-      if (!res.ok) throw new Error("保存に失敗しました");
-      setMessage({ type: "success", text: "設定を保存しました！" });
-    } catch (err: any) {
-      setMessage({ type: "error", text: err.message });
-    } finally {
-      setLoading(false);
-    }
-  };
+  
+  // React 19 useActionState for form submission
+  const [state, formAction] = useActionState<ActionResponse, FormData>(
+    async (prevState: ActionResponse, formData: FormData) => {
+      // Convert formData to the expected structure
+      const data = {
+        accountName: formData.get("accountName") as string,
+        genre: formData.get("genre") as string,
+        productUrl: formData.get("productUrl") as string,
+        bio: formData.get("bio") as string,
+        personality: formData.get("personality") as string,
+        footerText: formData.get("footerText") as string,
+        useHashtags: concept.useHashtags,
+        suggestedHashtags: concept.suggestedHashtags,
+      };
+      return await updateConcept(concept.id, data);
+    },
+    { success: false }
+  );
 
   const handleSuggestHashtags = async () => {
     setSuggesting(true);
     try {
-      const res = await fetch("/api/ai/suggest-hashtags", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ genre: concept.genre, bio: concept.bio }),
-      });
-      const data = await res.json();
-      if (data.hashtags) {
-        setConcept({ ...concept, suggestedHashtags: data.hashtags });
+      const result = await suggestHashtagsAction(concept.genre, concept.bio);
+      if (result.success && result.hashtags) {
+        setConcept({ ...concept, suggestedHashtags: result.hashtags });
+      } else {
+        alert(result.error || "提案に失敗しました");
       }
     } catch (err) {
       console.error("Hashtag suggestion failed", err);
@@ -58,11 +56,15 @@ export function ProductGrowthForm({ initialConcept }: { initialConcept: Concept 
   };
 
   return (
-    <div className="space-y-6">
-      {message && (
-        <div className={`p-4 rounded-xl text-sm border ${message.type === "success" ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-red-500/10 border-red-500/30 text-red-400"
-          }`}>
-          {message.text}
+    <form action={formAction} className="space-y-6">
+      {state.error && (
+        <div className="p-4 rounded-xl text-sm border bg-red-500/10 border-red-500/30 text-red-400">
+          {state.error}
+        </div>
+      )}
+      {state.message && (
+        <div className="p-4 rounded-xl text-sm border bg-green-500/10 border-green-500/30 text-green-400">
+          {state.message}
         </div>
       )}
 
@@ -74,6 +76,7 @@ export function ProductGrowthForm({ initialConcept }: { initialConcept: Concept 
             <label className="text-xs text-neutral-500 font-medium">プロダクト名</label>
             <input
               type="text"
+              name="accountName"
               value={concept.accountName}
               onChange={(e) => setConcept({ ...concept, accountName: e.target.value })}
               className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm focus:border-blue-500 outline-none transition-colors"
@@ -83,6 +86,7 @@ export function ProductGrowthForm({ initialConcept }: { initialConcept: Concept 
             <label className="text-xs text-neutral-500 font-medium">ジャンル</label>
             <input
               type="text"
+              name="genre"
               value={concept.genre}
               onChange={(e) => setConcept({ ...concept, genre: e.target.value })}
               className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm focus:border-blue-500 outline-none transition-colors"
@@ -93,6 +97,7 @@ export function ProductGrowthForm({ initialConcept }: { initialConcept: Concept 
           <label className="text-xs text-neutral-500 font-medium">プロダクトURL</label>
           <input
             type="text"
+            name="productUrl"
             placeholder="https://..."
             value={concept.productUrl || ""}
             onChange={(e) => setConcept({ ...concept, productUrl: e.target.value })}
@@ -103,6 +108,7 @@ export function ProductGrowthForm({ initialConcept }: { initialConcept: Concept 
           <label className="text-xs text-neutral-500 font-medium">プロダクト概要 (Bio)</label>
           <textarea
             rows={3}
+            name="bio"
             value={concept.bio}
             onChange={(e) => setConcept({ ...concept, bio: e.target.value })}
             className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm focus:border-blue-500 outline-none transition-colors resize-none"
@@ -118,6 +124,7 @@ export function ProductGrowthForm({ initialConcept }: { initialConcept: Concept 
           <label className="text-xs text-neutral-500 font-medium">性格・ニュアンス設定</label>
           <input
             type="text"
+            name="personality"
             placeholder="例: 親しみやすい、専門的、情熱的、カジュアルなど"
             value={concept.personality || ""}
             onChange={(e) => setConcept({ ...concept, personality: e.target.value })}
@@ -130,6 +137,7 @@ export function ProductGrowthForm({ initialConcept }: { initialConcept: Concept 
           <label className="text-xs text-neutral-500 font-medium">文末フッター (毎回表示)</label>
           <textarea
             rows={2}
+            name="footerText"
             placeholder="例: ぜひサイトをチェックしてください！"
             value={concept.footerText || ""}
             onChange={(e) => setConcept({ ...concept, footerText: e.target.value })}
@@ -145,6 +153,7 @@ export function ProductGrowthForm({ initialConcept }: { initialConcept: Concept 
           <div className="flex items-center gap-2">
             <span className="text-xs text-neutral-500">ハッシュタグを付与する</span>
             <button
+              type="button"
               onClick={() => setConcept({ ...concept, useHashtags: !concept.useHashtags })}
               className={`w-10 h-5 rounded-full transition-colors relative ${concept.useHashtags ? "bg-blue-600" : "bg-neutral-700"}`}
             >
@@ -158,6 +167,7 @@ export function ProductGrowthForm({ initialConcept }: { initialConcept: Concept 
             <div className="flex justify-between items-center">
               <label className="text-xs text-neutral-500 font-medium">ハッシュタグ候補</label>
               <button
+                type="button"
                 onClick={handleSuggestHashtags}
                 disabled={suggesting}
                 className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1 disabled:opacity-50"
@@ -168,7 +178,7 @@ export function ProductGrowthForm({ initialConcept }: { initialConcept: Concept 
 
             <div className="flex flex-wrap gap-2 p-3 bg-neutral-950 border border-neutral-800 rounded-xl min-h-[60px]">
               {(concept.suggestedHashtags || []).length > 0 ? (
-                concept.suggestedHashtags?.map((tag, idx) => (
+                concept.suggestedHashtags?.map((tag: string, idx: number) => (
                   <span key={idx} className="bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] px-2 py-0.5 rounded-full">
                     {tag}
                   </span>
@@ -182,12 +192,12 @@ export function ProductGrowthForm({ initialConcept }: { initialConcept: Concept 
       </section>
 
       <button
-        onClick={handleSave}
-        disabled={loading}
+        type="submit"
+        disabled={isPending}
         className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-900/20 disabled:opacity-50"
       >
-        {loading ? "保存中..." : "設定を保存する"}
+        {isPending ? "保存中..." : "設定を保存する"}
       </button>
-    </div>
+    </form>
   );
 }

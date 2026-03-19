@@ -1,31 +1,22 @@
-import { GoogleGenerativeAI, type GenerationConfig } from "@google/generative-ai";
+import { GoogleGenerativeAI, type GenerationConfig, SchemaType } from "@google/generative-ai";
+import { env } from "@/lib/env";
 
 const GEMINI_MODEL = "gemini-3.1-flash-lite-preview";
 
 function getGenAI(): GoogleGenerativeAI {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY environment variable is not set.");
-  }
-  return new GoogleGenerativeAI(apiKey);
+  return new GoogleGenerativeAI(env.GEMINI_API_KEY);
 }
 
 export type Platform = "x" | "instagram";
+export type PostCategory = "educational" | "affiliate" | "personal";
 
 export interface GeneratePostOptions {
-  template: string;   // Prompt template from DB
   platform: Platform;
-  context?: string;   // Optional extra context (e.g., product info)
-  personality?: string;
-  footerText?: string;
-  useHashtags?: boolean;
-  hashtags?: string[];
+  category?: PostCategory;
+  concept?: any;      // Concept from DB
+  template?: string;  // Custom template override
+  context?: string;
 }
-
-const platformGuidelines: Record<Platform, string> = {
-  x: "Write a concise, engaging tweet for X (Twitter). Max 280 characters. Use 1-2 relevant hashtags naturally. Do not use em dashes.",
-  instagram: "Write an engaging Instagram caption. Include a hook in the first line, body content, and 5-10 relevant hashtags at the end.",
-};
 
 const generationConfig: GenerationConfig = {
   temperature: 0.9,
@@ -34,34 +25,57 @@ const generationConfig: GenerationConfig = {
   maxOutputTokens: 1024,
 };
 
+const categoryFocus: Record<PostCategory, string> = {
+  educational: "読者に役立つ有益なノウハウや最新情報を共有する「有益投稿」を作成してください。商品の売り込みは絶対にしないでください。",
+  affiliate: "読者の悩みを解決する手段として、自然な流れで商品・サービス（ツールの紹介など）を提案する「アフィリエイト（収益化）投稿」を作成してください。過度な売り込み感を出さないこと。",
+  personal: "運用者の日常の気づきや価値観、失敗談などを共有し、読者と親近感を築く「属人性（パーソナル）投稿」を作成してください。",
+};
+
+const platformGuidelines: Record<Platform, string> = {
+  x: "X（Twitter）向けに、140字以内で完結するよう短く、ハッシュタグは1〜2個にし、共感やリツイートを誘うようなパンチの効いた構成にしてください。",
+  instagram: "Instagram向けに、1枚目の画像を引き立てるようなキャッチーな1行目、詳細な本文、そして最後にハッシュタグを5〜10個つけてください。",
+};
+
 /**
  * Generate an SNS post using Gemini.
- * Returns the generated text content.
  */
 export async function generatePost(options: GeneratePostOptions): Promise<string> {
-  const { template, platform, context, personality, footerText, useHashtags, hashtags } = options;
+  const { platform, category, concept, template, context } = options;
+  const personality = concept?.personality;
+  const footerText = concept?.footerText;
+  const useHashtags = concept?.useHashtags;
+  const hashtags = concept?.hashtags as string[] | undefined;
+
   const genAI = getGenAI();
   const model = genAI.getGenerativeModel({
     model: GEMINI_MODEL,
     generationConfig,
-    systemInstruction: `You are an expert SNS copywriter. ${platformGuidelines[platform]}
-${personality ? `Tone/Personality: ${personality}. ` : ""}
-Always respond with only the post content, no explanations or meta-text.`,
+    systemInstruction: `あなたはSNSマーケティングのプロです。${platformGuidelines[platform]}
+${personality ? `トーン・性格設定: ${personality}. ` : ""}
+絶対に返答には投稿文のテキストのみを出力し、挨拶文や解説を含めないでください。`,
   });
 
-  let prompt = [
-    `Template/Goal: ${template}`,
-    context ? `Additional Context: ${context}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const prompt = `
+[アカウント設定]
+ジャンル: ${concept?.genre || "なし"}
+ターゲット層: ${concept?.targetAudience || "なし"}
+プロフィール文: ${concept?.bio || "なし"}
+頻繁に使うハッシュタグ: ${(hashtags || []).join(", ")}
 
-  if (useHashtags && hashtags && hashtags.length > 0) {
-    prompt += `\nInclude some of these hashtags if appropriate: ${hashtags.join(", ")}`;
-  }
+[今回の投稿の目的]
+${category ? categoryFocus[category] : template || "なし"}
+
+${context ? `[追加の文脈]\n${context}` : ""}
+  `.trim();
 
   const result = await model.generateContent(prompt);
   let content = result.response.text().trim();
+
+  // Simple post-processing if necessary
+  if (useHashtags && hashtags && hashtags.length > 0 && !content.includes("#")) {
+    const selectedTags = hashtags.slice(0, 3).join(" ");
+    content += `\n\n${selectedTags}`;
+  }
 
   if (footerText) {
     content += `\n\n${footerText}`;
@@ -71,7 +85,7 @@ Always respond with only the post content, no explanations or meta-text.`,
 }
 
 /**
- * Suggest hashtags for a product/concept using Gemini.
+ * Suggest hashtags for a product/concept using Gemini (JSON Mode).
  */
 export async function suggestHashtags(options: {
   genre: string;
@@ -81,16 +95,55 @@ export async function suggestHashtags(options: {
   const genAI = getGenAI();
   const model = genAI.getGenerativeModel({
     model: GEMINI_MODEL,
-    generationConfig: { ...generationConfig, temperature: 0.7 },
-    systemInstruction: "You are an SNS marketing expert. Suggest the best hashtags for a product given its genre and biography. Return only a comma-separated list of 5-10 hashtags, starting each with #.",
+    generationConfig: {
+      ...generationConfig,
+      temperature: 0.7,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: SchemaType.OBJECT,
+        properties: {
+          hashtags: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+          },
+        },
+        required: ["hashtags"],
+      },
+    },
+    systemInstruction: "You are an SNS marketing expert. Suggest the best hashtags for a product. Return a JSON object with a 'hashtags' array of 5-10 strings, each starting with #.",
   });
 
-  const prompt = `Genre: ${genre}\nBiography: ${bio}\n\nSuggest 5-10 Japanese hashtags:`;
+  const prompt = `Genre: ${genre}\nBiography: ${bio}\n\nSuggest 5-10 Japanese hashtags.`;
   const result = await model.generateContent(prompt);
-  const text = result.response.text();
+  const data = JSON.parse(result.response.text());
 
-  return text
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.startsWith("#"));
+  return data.hashtags || [];
+}
+
+/**
+ * Generate a context-aware human-like reply for engagement.
+ */
+export async function generateContextAwareReply(targetPostContent: string, myAccountName: string): Promise<string> {
+  const genAI = getGenAI();
+  const model = genAI.getGenerativeModel({
+    model: GEMINI_MODEL,
+    generationConfig: { ...generationConfig, temperature: 0.7 },
+  });
+
+  const prompt = `
+あなたは「${myAccountName}」という名前のアカウントを運用している人間です。
+以下のSNSの投稿に対して、単なる相槌や絵文字だけでなく、人間味があり、相手が喜んだり感心するような文脈にあった「リプライ（返信）」を生成してください。
+
+【対象の投稿内容】
+"${targetPostContent}"
+
+条件：
+- 文字数は短め（50文字前後）。
+- ハッシュタグは使わない。
+- 商品の売り込みや宣伝は絶対にしない。
+- 完全に自然な日本語で。
+  `;
+
+  const result = await model.generateContent(prompt);
+  return result.response.text().trim();
 }

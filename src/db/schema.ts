@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, jsonb, boolean, index } from "drizzle-orm/pg-core";
 
 // --- Tenants (Multi-tenant base) ---
 export const tenants = pgTable("tenants", {
@@ -28,6 +28,7 @@ export const concepts = pgTable("concepts", {
   footerText: text("footer_text"),
   personality: text("personality"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // --- Accounts (Social Media Accounts for a Tenant) ---
@@ -121,7 +122,9 @@ export const engagementLogs = pgTable("engagement_logs", {
   targetUserId: text("target_user_id").notNull(), // the external user ID (X / IG)
   actionType: text("action_type").notNull(), // "like", "reply", "follow"
   actedAt: timestamp("acted_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("engagement_logs_account_id_acted_at_idx").on(table.accountId, table.actedAt),
+]);
 
 // --- Trend Cache (Global cache for high-traffic data) ---
 export const trendCache = pgTable("trend_cache", {
