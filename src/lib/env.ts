@@ -20,6 +20,7 @@ export function validateEnv() {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY, // Optional
     REDIS_URL: process.env.REDIS_URL, // Optional
+    FAL_KEY: process.env.FAL_KEY, // Optional, required for image generation
   };
 }
 

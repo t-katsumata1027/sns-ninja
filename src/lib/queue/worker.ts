@@ -7,7 +7,7 @@
  */
 
 import { Worker } from "bullmq";
-import { redisConnectionOptions, type PostPublishJobData, type DmReplyJobData } from "./client";
+import { redisConnectionOptions, type PostPublishJobData, type DmReplyJobData, type CronDailyJobData, getCronDailyQueue } from "./client";
 import { postToX } from "@/lib/automation/x-poster";
 import { waitForRateLimit } from "@/lib/rate-limiter";
 import { db } from "@/db";
@@ -16,7 +16,9 @@ import { eq } from "drizzle-orm";
 import { postToInstagram, sendDmToInstagram } from "@/lib/automation/instagram-poster";
 import { sendDmToX } from "@/lib/automation/x-poster";
 import { analyzeIntent, generateDmReply } from "@/lib/ai/intent";
-import { accounts } from "@/db/schema";
+import { accounts, concepts } from "@/db/schema";
+import { generatePost } from "@/lib/ai/gemini";
+import { generateAndUploadImage } from "@/lib/ai/image-generator";
 
 // ---- post-publish worker ----
 
@@ -113,5 +115,100 @@ dmReplyWorker.on("completed", (job) => console.log(`✅ dm-reply job ${job.id} d
 dmReplyWorker.on("failed", (job, err) =>
   console.error(`❌ dm-reply job ${job?.id} failed:`, err.message)
 );
+
+// ---- cron-daily worker ----
+
+export const cronDailyWorker = new Worker<CronDailyJobData>(
+  "cron-daily",
+  async (job) => {
+    console.log(`[cron-daily] Processing scheduled daily post generation...`);
+
+    try {
+      // 1. Fetch all accounts where auto-posting is enabled and active
+      const activeAccounts = await db.select().from(accounts).where(eq(accounts.isActive, true));
+      const autoPostAccounts = activeAccounts.filter(a => a.enableAutoPost);
+
+      if (autoPostAccounts.length === 0) {
+        console.log(`[cron-daily] No accounts with auto-posting enabled found.`);
+        return { success: true };
+      }
+
+      for (const account of autoPostAccounts) {
+        if (!account.conceptId) {
+          console.log(`[cron-daily] Skipping @${account.username}: No concept linked.`);
+          continue;
+        }
+
+        // Fetch concept
+        const [concept] = await db.select().from(concepts).where(eq(concepts.id, account.conceptId));
+        if (!concept) continue;
+
+        console.log(`[cron-daily] Generating post for @${account.username}...`);
+
+        try {
+          const generatedContent = await generatePost({
+            platform: account.platform as "x" | "instagram",
+            category: account.accountType === "affiliate" ? "affiliate" : "educational",
+            concept: concept,
+            context: "Generate an engaging post based on the daily trends."
+          });
+
+          let mediaUrls = null;
+
+          // Process Image Generation if enabled
+          if (account.enableImageGeneration) {
+             const imagePrompt = `A high quality, engaging social media image for the following topic: ${concept.genre}. Professional, vibrant colors. Context: ${generatedContent.substring(0, 100)}`;
+             const uploadedUrl = await generateAndUploadImage(imagePrompt);
+             if (uploadedUrl) {
+                mediaUrls = [uploadedUrl];
+             }
+          }
+
+          // Save pending post for HITL approval
+          await db.insert(posts).values({
+            tenantId: account.tenantId,
+            accountId: account.id,
+            content: generatedContent,
+            mediaUrls: mediaUrls,
+            status: "pending_approval",
+          });
+
+          console.log(`[cron-daily] ✅ Pending post created for @${account.username}`);
+        } catch (e: any) {
+             console.error(`[cron-daily] ❌ Failed to generate for @${account.username}:`, e.message);
+        }
+      }
+
+      console.log(`[cron-daily] Daily generation complete.`);
+      return { success: true };
+    } catch (err: any) {
+      console.error(`[cron-daily] Job failed:`, err.message);
+      throw err;
+    }
+  },
+  {
+    connection: redisConnectionOptions,
+    concurrency: 1, // Run generation sequentially to avoid rate limits
+  }
+);
+
+cronDailyWorker.on("completed", (job) => console.log(`✅ cron-daily job ${job.id} done`));
+cronDailyWorker.on("failed", (job, err) =>
+  console.error(`❌ cron-daily job ${job?.id} failed:`, err.message)
+);
+
+// Register the repeatable job
+async function setupCronJobs() {
+   const cronQueue = getCronDailyQueue();
+   // Add a repeatable job that runs every day at 8:00 AM UTC (17:00 JST)
+   await cronQueue.add(
+     "daily-generate", 
+     {}, 
+     { repeat: { pattern: "0 8 * * *" }, jobId: "daily-generate-task" }
+   );
+   console.log("⏰ Registered 'daily-generate' repeatable cron job.");
+}
+
+setupCronJobs().catch(console.error);
 
 console.log("🚀 BullMQ workers started. Waiting for jobs...");

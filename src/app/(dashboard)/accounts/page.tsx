@@ -3,6 +3,7 @@ import { accounts, concepts, engagementLogs, engagementRules } from "@/db/schema
 import { eq, count, sql } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 import { AccountForm } from "./AccountForm";
+import { AccountList } from "./AccountList";
 import { redirect } from "next/navigation";
 
 export default async function AccountsPage() {
@@ -32,7 +33,7 @@ export default async function AccountsPage() {
       accountId: engagementLogs.accountId,
       count: count(),
     }).from(engagementLogs).where(sql`DATE(${engagementLogs.actedAt}) = CURRENT_DATE`).groupBy(engagementLogs.accountId),
-    db.select().from(engagementRules).where(eq(engagementRules.tenantId, user.id)).limit(1)
+    db.select().from(engagementRules).where(eq(engagementRules.tenantId, user.id))
   ]);
 
   const dailyLimit = (engagementRuleRows[0] as any)?.dailyMaxActions || 50;
@@ -56,76 +57,13 @@ export default async function AccountsPage() {
              まだアカウントが連携されていません。上のフォームから追加してください。
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {userAccounts.map(acc => {
-              const linkedConcept = userConcepts.find(c => c.id === acc.conceptId);
-              return (
-                <div key={acc.id} className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 flex flex-col justify-between hover:border-blue-500/50 transition-colors">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                       <span className="text-2xl">{acc.platform === "x" ? "𝕏" : "📸"}</span>
-                       <div>
-                         <p className="font-bold flex items-center gap-2">
-                            {acc.username}
-                            {acc.accountType === "affiliate" ? (
-                              <span className="bg-blue-500/20 text-blue-400 text-[10px] px-1.5 py-0.5 rounded border border-blue-500/30">🎯 アフィリエイト</span>
-                            ) : (
-                              <span className="bg-amber-500/20 text-amber-400 text-[10px] px-1.5 py-0.5 rounded border border-amber-500/30">📈 アカウント育成</span>
-                            )}
-                         </p>
-                         <p className="text-xs text-neutral-500 capitalize">{acc.platform}</p>
-                       </div>
-                    </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${acc.isActive ? "text-green-400 border-green-500/30 bg-green-500/10" : "text-red-400 border-red-500/30 bg-red-500/10"}`}>
-                      {acc.isActive ? "連携中" : "無効"}
-                    </span>
-                  </div>
-
-                  {acc.isActive && (
-                    <div className="mb-4">
-                      {(() => {
-                        const currentActions = todayActionsData.find(t => t.accountId === acc.id)?.count || 0;
-                        const usagePercent = Math.min(Math.round((currentActions / dailyLimit) * 100), 100);
-                        const isWarning = usagePercent > 80;
-                        return (
-                          <>
-                            <div className="flex justify-between text-[10px] mb-1">
-                              <span className="text-neutral-500">本日アクション消化率</span>
-                              <span className={isWarning ? "text-amber-400" : "text-neutral-400"}>{currentActions} / {dailyLimit} ({usagePercent}%)</span>
-                            </div>
-                            <div className="w-full bg-neutral-900 h-1.5 rounded-full overflow-hidden border border-neutral-800">
-                              <div 
-                                className={`h-full transition-all duration-1000 ${isWarning ? "bg-amber-500" : "bg-blue-500"}`} 
-                                style={{ width: `${usagePercent}%` }} 
-                              />
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  )}
-                  
-                  <div className="space-y-2 mt-auto">
-                    <div className="flex justify-between text-xs p-2 bg-neutral-900 rounded-lg">
-                       <span className="text-neutral-500">紐付けコンセプト:</span>
-                       <span className="font-semibold text-blue-400">{linkedConcept ? linkedConcept.name : "未設定"}</span>
-                    </div>
-                    <div className="flex justify-between text-xs p-2 bg-neutral-900 rounded-lg">
-                       <span className="text-neutral-500">機能:</span>
-                       <div className="flex gap-2">
-                          <span className={`${acc.enableAutoPost ? 'text-white' : 'text-neutral-600'}`}>📝 自動投稿</span>
-                          <span className={`${acc.enableImageGeneration ? 'text-white' : 'text-neutral-600'}`}>🖼️ 画像生成</span>
-                       </div>
-                    </div>
-                    <div className="flex justify-between text-xs p-2 bg-neutral-900 rounded-lg">
-                       <span className="text-neutral-500">ウォーミングアップ:</span>
-                       <span className="font-semibold text-amber-400">フェーズ {acc.warmingUpStage}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <AccountList 
+            accounts={userAccounts as any} 
+            concepts={userConcepts} 
+            todayActionsData={todayActionsData} 
+            engagementRules={engagementRuleRows as any}
+            dailyLimit={dailyLimit}
+          />
         )}
       </div>
     </div>

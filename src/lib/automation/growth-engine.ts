@@ -1,7 +1,8 @@
 import { db } from "@/db";
 import { accounts, engagementRules, engagementLogs } from "@/db/schema";
 import { eq, and, gt } from "drizzle-orm";
-import { generateContextAwareReply } from "@/lib/ai/gemini";
+import { engageWithKeywordsOnX } from "@/lib/automation/x-poster";
+// If you implement instagram, you can import engageWithKeywordsOnInstagram here
 
 export async function runGrowthCycleForAccount(accountId: string) {
   // ... (rest of the function remains the same until step 5)
@@ -39,41 +40,23 @@ export async function runGrowthCycleForAccount(accountId: string) {
      return;
   }
 
-  // 3. Simulate fetching target posts based on keywords (In real env, this calls X/IG API)
+  // 3 & 4 & 5. Perform the actual Playwright Scrape & Reply
   const keywords = rule.targetKeywords as string[] || [];
-  console.log(`Searching posts for keywords: ${keywords.join(", ")}`);
-  
-  // Mock target post data (this would be replaced by actual scraping/API fetching)
-  const targetPosts = [
-    { targetUserId: "user_123", content: `${keywords[0] || "SNS"}の運用で悩んでます...` },
-    { targetUserId: "user_456", content: `最近${keywords[1] || "AI"}ツール触り始めたけど難しい` }
-  ];
-
-  // 4. Check interaction history to prevent spamming the same user
   const contactedUsers = new Set(recentLogs.map(l => l.targetUserId));
-  const newTargets = targetPosts.filter(p => !contactedUsers.has(p.targetUserId)).slice(0, maxActionsPerCycle);
-
-  // 5. Engage: Generate AI Reply & Log Action
-  for (const target of newTargets) {
-    // Random human-like delay between 2-5 seconds
-    await new Promise(res => setTimeout(res, 2000 + Math.random() * 3000));
-    
+  
+  if (account.platform === "x") {
     try {
-      const replyText = await generateContextAwareReply(target.content, account.username);
-      
-      console.log(`[ACTION] Replied to ${target.targetUserId}: "${replyText}"`);
-      
-      // Log the Engagement
-      await db.insert(engagementLogs).values({
+      const actionsDone = await engageWithKeywordsOnX({
         accountId: account.id,
-        targetUserId: target.targetUserId,
-        actionType: "reply",
+        keywords: keywords.filter(k => k.trim().length > 0),
+        maxActions: maxActionsPerCycle,
+        contactedUsers
       });
-
+      console.log(`Growth cycle complete for @${account.username}. Engaged with ${actionsDone} targets on X.`);
     } catch (err: any) {
-      console.error(`Failed to engage with ${target.targetUserId}:`, err.message);
+      console.error(`Fatal error in X engagement cycle for @${account.username}:`, err.message);
     }
+  } else if (account.platform === "instagram") {
+    console.log(`Instagram growth engine not fully converted to Playwright yet. Skipping.`);
   }
-
-  console.log(`Growth cycle complete for ${account.username}. Engaged with ${newTargets.length} targets.`);
 }

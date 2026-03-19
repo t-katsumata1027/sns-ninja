@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { accounts } from "@/db/schema";
+import { accounts, engagementRules } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import { encrypt } from "@/lib/crypto";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
@@ -48,5 +49,47 @@ export async function addAccount(formData: FormData) {
   } catch (error: any) {
     console.error("Failed to add account:", error);
     return { success: false, error: "Failed to add account." };
+  }
+}
+export async function upsertEngagementRule(
+  accountId: string,
+  targetKeywords: string[],
+  competitorAccounts: string[]
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  try {
+    // Check if rule exists
+    const [existing] = await db
+      .select()
+      .from(engagementRules)
+      .where(and(eq(engagementRules.accountId, accountId), eq(engagementRules.tenantId, user.id)))
+      .limit(1);
+
+    if (existing) {
+      await db
+        .update(engagementRules)
+        .set({
+          targetKeywords,
+          competitorAccounts,
+          updatedAt: new Date(),
+        })
+        .where(eq(engagementRules.id, existing.id));
+    } else {
+      await db.insert(engagementRules).values({
+        tenantId: user.id,
+        accountId,
+        targetKeywords,
+        competitorAccounts,
+      });
+    }
+
+    revalidatePath("/(dashboard)/accounts");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to upsert engagement rule:", error);
+    return { success: false, error: "Failed to save settings." };
   }
 }

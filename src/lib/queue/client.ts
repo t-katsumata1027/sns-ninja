@@ -16,6 +16,7 @@ export { redisConnectionOptions };
 // Lazy initializers to avoid connection attempts during build time
 let _postPublishQueue: Queue | null = null;
 let _dmReplyQueue: Queue | null = null;
+let _cronDailyQueue: Queue | null = null;
 
 export function getPostPublishQueue() {
   if (!_postPublishQueue) {
@@ -47,6 +48,20 @@ export function getDmReplyQueue() {
   return _dmReplyQueue;
 }
 
+export function getCronDailyQueue() {
+  if (!_cronDailyQueue) {
+    _cronDailyQueue = new Queue("cron-daily", {
+      connection: redisConnectionOptions,
+      defaultJobOptions: {
+        attempts: 1, // Don't retry cron jobs if they fail completely
+        removeOnComplete: 10,
+        removeOnFail: 100,
+      },
+    });
+  }
+  return _cronDailyQueue;
+}
+
 export type PostPublishJobData = {
   postId: string;
   accountId: string;
@@ -62,4 +77,8 @@ export type DmReplyJobData = {
   senderId: string;
   replyContent: string;
   platform: "x" | "instagram";
+};
+
+export type CronDailyJobData = {
+  // Empty, just a trigger
 };
