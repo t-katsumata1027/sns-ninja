@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { accounts, posts, concepts, promptTemplates, engagementRules } from "@/db/schema";
+import { accounts, posts, concepts, promptTemplates, engagementRules, engagementLogs } from "@/db/schema";
 import { eq, count, sql } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
@@ -43,16 +43,44 @@ export default async function DashboardPage() {
   const hasPrompt = promptRows.length > 0;
   const hasEngagement = engagementRuleRows.length > 0;
 
+  // 1. Fetch Today's Actions per account
+  const todayActionsData = await db.select({
+    accountId: engagementLogs.accountId,
+    count: count(),
+  })
+    .from(engagementLogs)
+    .where(sql`DATE(${engagementLogs.actedAt}) = CURRENT_DATE`)
+    .groupBy(engagementLogs.accountId);
+
+  // 2. Fetch engagement stats (last 7 days aggregate)
+  const engagementLogsData = await db.execute(sql`
+    SELECT 
+      DATE_TRUNC('day', acted_at) as day,
+      count(*) as count
+    FROM engagement_logs
+    WHERE account_id IN (SELECT id FROM accounts WHERE tenant_id = ${user.id})
+      AND acted_at > NOW() - INTERVAL '7 days'
+    GROUP BY 1
+    ORDER BY 1 ASC
+  `);
+
+  const dailyCounts = (engagementLogsData as any[]).map(r => Number(r.count));
+  const maxEngagement = Math.max(...dailyCounts, 1);
+  const totalEngagement = dailyCounts.reduce((a, b) => a + b, 0);
+
+  // 3. Setup Onboarding
   const onboardingSteps = [
     { title: "市場調査と設計", completed: hasConcept, href: "/research", desc: "AIによる市場分析とコンセプト作成" },
     { title: "アカウント連携", completed: hasAccount, href: "/accounts", desc: "設計書通りのSNSアカウントを登録" },
     { title: "プロンプト設定", completed: hasPrompt, href: "/templates", desc: "自動投稿用AIプロンプトの作成" },
-    { title: "エンゲージメント", completed: hasEngagement, href: "/growth", desc: "ターゲット自動いいね・リプライ設定" },
+    { title: "エンゲージメント", completed: hasEngagement, href: "/settings/product-growth", desc: "ターゲット自動いいね・リプライ設定" },
   ];
   const completedSteps = onboardingSteps.filter(s => s.completed).length;
   const onboardingComplete = completedSteps === onboardingSteps.length;
 
-  const maxRevenue = Math.max(...REVENUE_DATA);
+  // 4. Get limits for health display
+  const rule = engagementRuleRows[0] as any;
+  const dailyLimit = rule?.dailyMaxActions || 50;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -66,7 +94,7 @@ export default async function DashboardPage() {
         <StatCard label="接続アカウント" value={accountRows.length} icon="📱" accent="blue" />
         <StatCard label="アクティブ" value={activeAccounts} icon="✅" accent="green" />
         <StatCard label="承認待ち投稿" value={Number(pendingCount)} icon="⏳" accent="amber" />
-        <StatCard label="投稿済み" value={Number(publishedCount)} icon="🚀" accent="purple" />
+        <StatCard label="累計アクション" value={totalEngagement} icon="🔥" accent="purple" />
       </div>
 
       {/* Onboarding Checklist */}
@@ -113,28 +141,28 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Revenue Trend */}
+      {/* Engagement Trend */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-base font-semibold">収益トレンド</h3>
-            <p className="text-xs text-neutral-500 mt-0.5">過去12週間の推定収益 (USD)</p>
+            <h3 className="text-base font-semibold">エンゲージメント推移</h3>
+            <p className="text-xs text-neutral-500 mt-0.5">過去7日間の自動アクション数（合計）</p>
           </div>
-          <span className="text-2xl font-bold text-green-400">$1,500</span>
+          <span className="text-2xl font-bold text-blue-400">{totalEngagement} <span className="text-xs font-normal text-neutral-500">actions</span></span>
         </div>
         {/* Sparkline Chart */}
         <div className="flex items-end gap-1.5 h-20">
-          {REVENUE_DATA.map((val, i) => (
+          {(dailyCounts.length > 0 ? dailyCounts : [0, 0, 0, 0, 0, 0, 0]).map((val, i) => (
             <div
               key={i}
               className="flex-1 rounded-t-sm bg-gradient-to-t from-blue-600 to-blue-400 opacity-80 hover:opacity-100 transition-opacity"
-              style={{ height: `${(val / maxRevenue) * 100}%` }}
-              title={`Week ${i + 1}: $${val}`}
+              style={{ height: `${(val / maxEngagement) * 100}%` }}
+              title={`Day ${i + 1}: ${val} actions`}
             />
           ))}
         </div>
         <div className="flex justify-between text-xs text-neutral-600 mt-2">
-          <span>12週前</span><span>今週</span>
+          <span>7日前</span><span>今日</span>
         </div>
       </div>
 
@@ -144,17 +172,32 @@ export default async function DashboardPage() {
         {accountRows.length === 0 ? (
           <p className="text-neutral-500 text-sm">アカウントが未登録です。<a href="/accounts" className="text-blue-400 hover:underline">アカウントを追加</a></p>
         ) : (
-          <div className="space-y-3">
-            {accountRows.map((acc) => (
-              <div key={acc.id} className="flex items-center gap-3">
-                <span className={`w-2 h-2 rounded-full ${acc.isActive ? "bg-green-400" : "bg-red-400"}`} />
-                <span className="text-sm font-medium">{acc.username}</span>
-                <span className="text-xs text-neutral-500 capitalize">{acc.platform}</span>
-                <span className={`ml-auto text-xs px-2 py-0.5 rounded-full border ${acc.isActive ? "text-green-400 border-green-500/30 bg-green-500/10" : "text-red-400 border-red-500/30 bg-red-500/10"}`}>
-                  {acc.isActive ? "正常" : "無効"}
-                </span>
-              </div>
-            ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {accountRows.map((acc) => {
+              const currentActions = todayActionsData.find(t => t.accountId === acc.id)?.count || 0;
+              const usagePercent = Math.min(Math.round((currentActions / dailyLimit) * 100), 100);
+              const isWarning = usagePercent > 80;
+
+              return (
+                <div key={acc.id} className="p-4 rounded-xl border border-neutral-800 bg-neutral-900/50">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className={`w-2 h-2 rounded-full ${acc.isActive ? "bg-green-400" : "bg-red-400"}`} />
+                    <span className="text-sm font-bold">{acc.username}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-neutral-800 text-neutral-400 uppercase tracking-tighter">{acc.platform}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-neutral-500 mb-1">
+                    <span>本日分アクション ({currentActions} / {dailyLimit})</span>
+                    <span className={isWarning ? "text-amber-400" : "text-neutral-400"}>{usagePercent}%</span>
+                  </div>
+                  <div className="w-full bg-neutral-800 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-1000 ${isWarning ? "bg-amber-500" : "bg-blue-500"}`} 
+                      style={{ width: `${usagePercent}%` }} 
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

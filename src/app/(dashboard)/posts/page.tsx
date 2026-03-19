@@ -3,6 +3,7 @@ import { posts, accounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
+import { PostItem } from "./PostItem";
 
 const STATUS_STYLES: Record<string, string> = {
   pending_approval: "bg-amber-500/10 text-amber-400 border-amber-500/30",
@@ -61,35 +62,7 @@ export default async function PostsPage() {
           </h3>
           <div className="space-y-3">
             {pendingPosts.map((post) => (
-              <div
-                key={post.id}
-                className="bg-neutral-900 border border-amber-500/20 rounded-2xl p-5"
-              >
-                <p className="text-sm text-white whitespace-pre-wrap leading-relaxed mb-4">
-                  {post.content}
-                </p>
-                <div className="flex items-center gap-3">
-                  <form method="PATCH" action={`/api/posts/${post.id}/approve`}>
-                    <button
-                      type="submit"
-                      className="rounded-lg bg-green-600 hover:bg-green-500 px-4 py-1.5 text-xs font-semibold text-white transition-colors"
-                    >
-                      ✅ 承認
-                    </button>
-                  </form>
-                  <form method="DELETE" action={`/api/posts/${post.id}/approve`}>
-                    <button
-                      type="submit"
-                      className="rounded-lg bg-red-600/80 hover:bg-red-500 px-4 py-1.5 text-xs font-semibold text-white transition-colors"
-                    >
-                      ❌ 却下
-                    </button>
-                  </form>
-                  <span className="text-xs text-neutral-500 ml-auto">
-                    {new Date(post.createdAt).toLocaleString("ja-JP")}
-                  </span>
-                </div>
-              </div>
+              <PostItem key={post.id} post={post} />
             ))}
           </div>
         </div>

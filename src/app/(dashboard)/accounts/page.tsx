@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { accounts, concepts } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { accounts, concepts, engagementLogs, engagementRules } from "@/db/schema";
+import { eq, count, sql } from "drizzle-orm";
 import { createClient } from "@/utils/supabase/server";
 import { AccountForm } from "./AccountForm";
 import { redirect } from "next/navigation";
@@ -11,7 +11,7 @@ export default async function AccountsPage() {
   if (!user) redirect("/login");
 
   // Fetch data in parallel
-  const [userAccounts, userConcepts] = await Promise.all([
+  const [userAccounts, userConcepts, todayActionsData, engagementRuleRows] = await Promise.all([
     db.select({
       id: accounts.id,
       platform: accounts.platform,
@@ -24,8 +24,15 @@ export default async function AccountsPage() {
       id: concepts.id,
       genre: concepts.genre,
       name: concepts.accountName,
-    }).from(concepts).where(eq(concepts.tenantId, user.id))
+    }).from(concepts).where(eq(concepts.tenantId, user.id)),
+    db.select({
+      accountId: engagementLogs.accountId,
+      count: count(),
+    }).from(engagementLogs).where(sql`DATE(${engagementLogs.actedAt}) = CURRENT_DATE`).groupBy(engagementLogs.accountId),
+    db.select().from(engagementRules).where(eq(engagementRules.tenantId, user.id)).limit(1)
   ]);
+
+  const dailyLimit = (engagementRuleRows[0] as any)?.dailyMaxActions || 50;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
@@ -63,6 +70,30 @@ export default async function AccountsPage() {
                       {acc.isActive ? "連携中" : "無効"}
                     </span>
                   </div>
+
+                  {acc.isActive && (
+                    <div className="mb-4">
+                      {(() => {
+                        const currentActions = todayActionsData.find(t => t.accountId === acc.id)?.count || 0;
+                        const usagePercent = Math.min(Math.round((currentActions / dailyLimit) * 100), 100);
+                        const isWarning = usagePercent > 80;
+                        return (
+                          <>
+                            <div className="flex justify-between text-[10px] mb-1">
+                              <span className="text-neutral-500">本日アクション消化率</span>
+                              <span className={isWarning ? "text-amber-400" : "text-neutral-400"}>{currentActions} / {dailyLimit} ({usagePercent}%)</span>
+                            </div>
+                            <div className="w-full bg-neutral-900 h-1.5 rounded-full overflow-hidden border border-neutral-800">
+                              <div 
+                                className={`h-full transition-all duration-1000 ${isWarning ? "bg-amber-500" : "bg-blue-500"}`} 
+                                style={{ width: `${usagePercent}%` }} 
+                              />
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
                   
                   <div className="space-y-2 mt-auto">
                     <div className="flex justify-between text-xs p-2 bg-neutral-900 rounded-lg">
