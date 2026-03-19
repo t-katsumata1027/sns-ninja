@@ -39,6 +39,9 @@ export const accounts = pgTable("accounts", {
     .references(() => tenants.id, { onDelete: "cascade" }),
   conceptId: uuid("concept_id")
     .references(() => concepts.id, { onDelete: "set null" }),
+  accountType: text("account_type").default("affiliate").notNull(),
+  enableAutoPost: boolean("enable_auto_post").default(true).notNull(),
+  enableImageGeneration: boolean("enable_image_generation").default(false).notNull(),
   platform: text("platform").notNull(), // "x" or "instagram"
   username: text("username").notNull(),
   warmingUpStage: text("warming_up_stage").default("1"), // "1": restrictive, "2": moderate, "3": full

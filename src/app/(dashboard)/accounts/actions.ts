@@ -19,6 +19,9 @@ export async function addAccount(formData: FormData) {
   const username = formData.get("username") as string;
   const conceptId = formData.get("conceptId") as string;
   const token = formData.get("token") as string;
+  const accountType = formData.get("accountType") as string || "affiliate";
+  const enableAutoPost = formData.get("enableAutoPost") === "true";
+  const enableImageGeneration = formData.get("enableImageGeneration") === "true";
 
   if (!platform || !username) {
     return { success: false, error: "Platform and Username are required." };
@@ -32,6 +35,9 @@ export async function addAccount(formData: FormData) {
       platform,
       username,
       conceptId: conceptId || null,
+      accountType,
+      enableAutoPost,
+      enableImageGeneration,
       encryptedToken,
       isActive: true,
       warmingUpStage: "1", // Initial restrictive stage for safety

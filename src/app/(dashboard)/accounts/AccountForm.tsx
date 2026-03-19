@@ -6,6 +6,11 @@ import { addAccount } from "./actions";
 export function AccountForm({ concepts }: { concepts: { id: string; name: string; genre: string }[] }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // New state variables for UX improvements
+  const [accountType, setAccountType] = useState<"affiliate" | "growth">("affiliate");
+  const [enableAutoPost, setEnableAutoPost] = useState(true);
+  const [enableImageGeneration, setEnableImageGeneration] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -34,7 +39,29 @@ export function AccountForm({ concepts }: { concepts: { id: string; name: string
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="mb-6">
+          <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">運用目的</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label className={`border rounded-xl p-4 cursor-pointer transition-all ${accountType === "affiliate" ? "border-blue-500 bg-blue-500/10" : "border-neutral-800 bg-neutral-950"}`}>
+              <input type="radio" name="accountType" value="affiliate" checked={accountType === "affiliate"} onChange={() => setAccountType("affiliate")} className="hidden" />
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xl">🎯</span>
+                <span className="font-bold text-sm text-white">アフィリエイト運用</span>
+              </div>
+              <span className="block text-xs text-neutral-400 leading-relaxed">AIが選んだコンセプトに沿って自動投稿を行い、収益化を目指します。</span>
+            </label>
+            <label className={`border rounded-xl p-4 cursor-pointer transition-all ${accountType === "growth" ? "border-amber-500 bg-amber-500/10" : "border-neutral-800 bg-neutral-950"}`}>
+              <input type="radio" name="accountType" value="growth" checked={accountType === "growth"} onChange={() => setAccountType("growth")} className="hidden" />
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xl">📈</span>
+                <span className="font-bold text-sm text-white">既存アカウント育成</span>
+              </div>
+              <span className="block text-xs text-neutral-400 leading-relaxed">エンゲージメント中心でフォロワーを増やします。自動投稿は任意です。</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5">
               SNSプラットフォーム
@@ -61,22 +88,51 @@ export function AccountForm({ concepts }: { concepts: { id: string; name: string
           </div>
         </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5">
-            AIコンセプト（任意）
-          </label>
-          <select
-            name="conceptId"
-            className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-white"
-          >
-            <option value="">-- コンセプトを紐付けない --</option>
-            {concepts.map(c => (
-              <option key={c.id} value={c.id}>{c.name} ({c.genre})</option>
-            ))}
-          </select>
-          <p className="text-xs text-neutral-500 mt-1">
-            市場調査で作成したコンセプトを紐付けると、AIが自動で投稿プランを最適化します。
-          </p>
+        <div className="space-y-4 mb-6 pt-4 border-t border-neutral-800">
+          <div className="flex items-center justify-between bg-neutral-950 border border-neutral-800 rounded-xl p-4">
+            <div>
+              <span className="block font-semibold text-sm text-white">📝 AI自動投稿</span>
+              <span className="block text-xs text-neutral-500">コンセプトに沿った内容を自動で生成・予約投稿します</span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" name="enableAutoPost" value="true" className="sr-only peer" checked={enableAutoPost} onChange={(e) => setEnableAutoPost(e.target.checked)} />
+              <div className="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          {enableAutoPost && (
+            <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 mb-4">
+              <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5">
+                AIコンセプト（{accountType === "affiliate" ? "必須" : "任意"}）
+              </label>
+              <select
+                name="conceptId"
+                required={accountType === "affiliate" && enableAutoPost}
+                className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-white"
+              >
+                <option value="">-- コンセプトを選択 --</option>
+                {concepts.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.genre})</option>
+                ))}
+              </select>
+              <p className="text-xs text-neutral-500 mt-2">
+                市場調査で作成したコンセプトを紐付けると、AIが自動で投稿プランを最適化します。
+              </p>
+            </div>
+          )}
+
+          {enableAutoPost && (
+            <div className="flex items-center justify-between bg-neutral-950 border border-neutral-800 rounded-xl p-4">
+              <div>
+                <span className="block font-semibold text-sm text-white">🖼️ AI画像生成</span>
+                <span className="block text-xs text-neutral-500">投稿に合わせて関連する画像を自動生成して添付します</span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" name="enableImageGeneration" value="true" className="sr-only peer" checked={enableImageGeneration} onChange={(e) => setEnableImageGeneration(e.target.checked)} />
+                <div className="w-11 h-6 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+          )}
         </div>
 
         <div>

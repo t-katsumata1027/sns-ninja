@@ -19,6 +19,9 @@ export default async function AccountsPage() {
       isActive: accounts.isActive,
       conceptId: accounts.conceptId,
       warmingUpStage: accounts.warmingUpStage,
+      accountType: accounts.accountType,
+      enableAutoPost: accounts.enableAutoPost,
+      enableImageGeneration: accounts.enableImageGeneration,
     }).from(accounts).where(eq(accounts.tenantId, user.id)),
     db.select({
       id: concepts.id,
@@ -62,7 +65,14 @@ export default async function AccountsPage() {
                     <div className="flex items-center gap-3">
                        <span className="text-2xl">{acc.platform === "x" ? "𝕏" : "📸"}</span>
                        <div>
-                         <p className="font-bold">{acc.username}</p>
+                         <p className="font-bold flex items-center gap-2">
+                            {acc.username}
+                            {acc.accountType === "affiliate" ? (
+                              <span className="bg-blue-500/20 text-blue-400 text-[10px] px-1.5 py-0.5 rounded border border-blue-500/30">🎯 アフィリエイト</span>
+                            ) : (
+                              <span className="bg-amber-500/20 text-amber-400 text-[10px] px-1.5 py-0.5 rounded border border-amber-500/30">📈 アカウント育成</span>
+                            )}
+                         </p>
                          <p className="text-xs text-neutral-500 capitalize">{acc.platform}</p>
                        </div>
                     </div>
@@ -99,6 +109,13 @@ export default async function AccountsPage() {
                     <div className="flex justify-between text-xs p-2 bg-neutral-900 rounded-lg">
                        <span className="text-neutral-500">紐付けコンセプト:</span>
                        <span className="font-semibold text-blue-400">{linkedConcept ? linkedConcept.name : "未設定"}</span>
+                    </div>
+                    <div className="flex justify-between text-xs p-2 bg-neutral-900 rounded-lg">
+                       <span className="text-neutral-500">機能:</span>
+                       <div className="flex gap-2">
+                          <span className={`${acc.enableAutoPost ? 'text-white' : 'text-neutral-600'}`}>📝 自動投稿</span>
+                          <span className={`${acc.enableImageGeneration ? 'text-white' : 'text-neutral-600'}`}>🖼️ 画像生成</span>
+                       </div>
                     </div>
                     <div className="flex justify-between text-xs p-2 bg-neutral-900 rounded-lg">
                        <span className="text-neutral-500">ウォーミングアップ:</span>
