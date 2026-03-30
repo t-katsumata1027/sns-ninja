@@ -29,7 +29,9 @@ export const concepts = pgTable("concepts", {
   personality: text("personality"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_concepts_tenant_id").on(table.tenantId),
+]);
 
 // --- Accounts (Social Media Accounts for a Tenant) ---
 export const accounts = pgTable("accounts", {
@@ -51,7 +53,9 @@ export const accounts = pgTable("accounts", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_accounts_tenant_id").on(table.tenantId),
+]);
 
 // --- Posts (Scheduled content) ---
 export const posts = pgTable("posts", {
@@ -69,7 +73,10 @@ export const posts = pgTable("posts", {
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_posts_tenant_id").on(table.tenantId),
+  index("idx_posts_account_id").on(table.accountId),
+]);
 
 // --- DM Messages (Intent analyzed DMs) ---
 export const dmMessages = pgTable("dm_messages", {
@@ -85,7 +92,10 @@ export const dmMessages = pgTable("dm_messages", {
   intentCategory: text("intent_category"), // e.g., "purchase", "general_question"
   isReplied: boolean("is_replied").default(false),
   receivedAt: timestamp("received_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_dm_messages_tenant_id").on(table.tenantId),
+  index("idx_dm_messages_account_id").on(table.accountId),
+]);
 
 // --- Prompt Templates (AI Content generation rules) ---
 export const promptTemplates = pgTable("prompt_templates", {
@@ -98,7 +108,9 @@ export const promptTemplates = pgTable("prompt_templates", {
   platform: text("platform").notNull(), // "x" or "instagram"
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_prompt_templates_tenant_id").on(table.tenantId),
+]);
 
 // --- Engagement Rules (Targeting & Limits) ---
 export const engagementRules = pgTable("engagement_rules", {
@@ -114,11 +126,17 @@ export const engagementRules = pgTable("engagement_rules", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_engagement_rules_tenant_id").on(table.tenantId),
+  index("idx_engagement_rules_account_id").on(table.accountId),
+]);
 
 // --- Engagement Logs (Anti-spam / Rate limiting tracking) ---
 export const engagementLogs = pgTable("engagement_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
   accountId: uuid("account_id")
     .notNull()
     .references(() => accounts.id, { onDelete: "cascade" }),
@@ -126,6 +144,7 @@ export const engagementLogs = pgTable("engagement_logs", {
   actionType: text("action_type").notNull(), // "like", "reply", "follow"
   actedAt: timestamp("acted_at").defaultNow().notNull(),
 }, (table) => [
+  index("idx_engagement_logs_tenant_id").on(table.tenantId),
   index("engagement_logs_account_id_acted_at_idx").on(table.accountId, table.actedAt),
 ]);
 

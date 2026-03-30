@@ -24,7 +24,7 @@ Respond ONLY with valid JSON in this exact format:
 export async function analyzeIntent(message: string): Promise<IntentAnalysisResult> {
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash", // Use stable model for intent
+    model: "gemini-3.1-flash-lite-preview", // Use stable model for intent
     systemInstruction: INTENT_SYSTEM_PROMPT,
     generationConfig: { 
       temperature: 0.1, 
@@ -69,7 +69,7 @@ export async function generateDmReply(
 ): Promise<string> {
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
+    model: "gemini-3.1-flash-lite-preview",
     systemInstruction:
       "You are a friendly and helpful SNS affiliate marketer responding to direct messages in Japanese. Keep replies concise (under 200 characters), warm, and action-oriented. Do not include emojis excessively.",
     generationConfig: { temperature: 0.7, maxOutputTokens: 256 },

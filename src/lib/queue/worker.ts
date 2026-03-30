@@ -19,6 +19,7 @@ import { analyzeIntent, generateDmReply } from "@/lib/ai/intent";
 import { accounts, concepts } from "@/db/schema";
 import { generatePost } from "@/lib/ai/gemini";
 import { generateAndUploadImage } from "@/lib/ai/image-generator";
+import { sendDiscordAlert } from "@/lib/discord";
 
 // ---- post-publish worker ----
 
@@ -31,7 +32,8 @@ export const postPublishWorker = new Worker<PostPublishJobData>(
 
     try {
       // Anti-ban: use PRD-specified 'post' action delay (3–8 min)
-      await waitForRateLimit("post");
+      // Throws error if hourly limit reached (X: 8 posts/hr)
+      await waitForRateLimit(accountId, "post");
 
       // Fetch from DB to get mediaUrls (required for Instagram)
       const [post] = await db.select().from(posts).where(eq(posts.id, postId)).limit(1);
@@ -57,7 +59,7 @@ export const postPublishWorker = new Worker<PostPublishJobData>(
   },
   {
     connection: redisConnectionOptions,
-    concurrency: 1, // Process one post at a time per worker instance
+    concurrency: parseInt(process.env.WORKER_CONCURRENCY_POST || "2", 10), // Scale up to 20 accounts safely
   }
 );
 // ... (dm-reply worker follows)
@@ -75,7 +77,8 @@ export const dmReplyWorker = new Worker<DmReplyJobData>(
 
     try {
       // Anti-ban: use 'dm' rate limit delay before replying
-      await waitForRateLimit("dm");
+      // Throws error if hourly limit reached (IG: 200/hr)
+      await waitForRateLimit(job.data.accountId, "dm");
 
       // 1. Analyze Intent
       const intentResult = await analyzeIntent(job.data.replyContent || ""); // Job data usually contains raw incoming message or context
@@ -105,20 +108,23 @@ export const dmReplyWorker = new Worker<DmReplyJobData>(
   },
   {
     connection: redisConnectionOptions,
-    concurrency: 2,
+    concurrency: parseInt(process.env.WORKER_CONCURRENCY_DM || "5", 10),
   }
 );
 
 // ---- Event listeners ----
 
 postPublishWorker.on("completed", (job) => console.log(`✅ post-publish job ${job.id} done`));
-postPublishWorker.on("failed", (job, err) =>
-  console.error(`❌ post-publish job ${job?.id} failed:`, err.message)
-);
+postPublishWorker.on("failed", async (job, err) => {
+  console.error(`❌ post-publish job ${job?.id} failed:`, err.message);
+  await sendDiscordAlert("Post Publish Failed", `Job ${job?.id} failed: ${err.message}`, job?.data);
+});
+
 dmReplyWorker.on("completed", (job) => console.log(`✅ dm-reply job ${job.id} done`));
-dmReplyWorker.on("failed", (job, err) =>
-  console.error(`❌ dm-reply job ${job?.id} failed:`, err.message)
-);
+dmReplyWorker.on("failed", async (job, err) => {
+  console.error(`❌ dm-reply job ${job?.id} failed:`, err.message);
+  await sendDiscordAlert("DM Reply Failed", `Job ${job?.id} failed: ${err.message}`, job?.data);
+});
 
 // ---- cron-daily worker ----
 
@@ -197,9 +203,10 @@ export const cronDailyWorker = new Worker<CronDailyJobData>(
 );
 
 cronDailyWorker.on("completed", (job) => console.log(`✅ cron-daily job ${job.id} done`));
-cronDailyWorker.on("failed", (job, err) =>
-  console.error(`❌ cron-daily job ${job?.id} failed:`, err.message)
-);
+cronDailyWorker.on("failed", async (job, err) => {
+  console.error(`❌ cron-daily job ${job?.id} failed:`, err.message);
+  await sendDiscordAlert("Daily Generation Failed", `Job ${job?.id} failed: ${err.message}`);
+});
 
 // Register the repeatable job
 async function setupCronJobs() {
@@ -213,6 +220,17 @@ async function setupCronJobs() {
    console.log("⏰ Registered 'daily-generate' repeatable cron job.");
 }
 
-setupCronJobs().catch(console.error);
+import http from "http";
+
+// ---- health-check server for Worker (Render / K8s) ----
+const HEALTH_PORT = process.env.PORT || 3001;
+const healthServer = http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ status: "ok", uptime: process.uptime() }));
+});
+
+healthServer.listen(HEALTH_PORT, () => {
+  console.log(`📡 Worker health server listening on port ${HEALTH_PORT}`);
+});
 
 console.log("🚀 BullMQ workers started. Waiting for jobs...");

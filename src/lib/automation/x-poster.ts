@@ -256,6 +256,7 @@ export async function engageWithKeywordsOnX({
 
       // Log in the DB
       await db.insert(engagementLogs).values({
+        tenantId: account.tenantId,
         accountId: account.id,
         targetUserId: targetUserId,
         actionType: "reply",

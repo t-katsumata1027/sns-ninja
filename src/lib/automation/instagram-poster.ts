@@ -300,6 +300,7 @@ export async function engageWithKeywordsOnInstagram({
       console.log(`[insta-poster] ✅ Commented on @${targetUserId}'s post: "${commentText}"`);
 
       await db.insert(engagementLogs).values({
+        tenantId: account.tenantId,
         accountId: account.id,
         targetUserId: targetUserId,
         actionType: "reply", // Treat comment as reply
