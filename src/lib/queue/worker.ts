@@ -59,7 +59,7 @@ export const postPublishWorker = new Worker<PostPublishJobData>(
   },
   {
     connection: redisConnectionOptions,
-    concurrency: parseInt(process.env.WORKER_CONCURRENCY_POST || "2", 10), // Scale up to 20 accounts safely
+    concurrency: parseInt(process.env.WORKER_CONCURRENCY_POST || "1", 10), // Safe for Free Tier
   }
 );
 // ... (dm-reply worker follows)

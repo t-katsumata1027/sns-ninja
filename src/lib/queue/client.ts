@@ -2,10 +2,9 @@ import { Queue } from "bullmq";
 
 // BullMQ bundles its own ioredis. Pass connection options directly (not a Redis instance)
 // to avoid version incompatibility between standalone ioredis and BullMQ's bundled version.
+// BullMQ connection options using a single connection string
 const redisConnectionOptions = {
-  host: process.env.REDIS_HOST || "localhost",
-  port: parseInt(process.env.REDIS_PORT || "6379", 10),
-  password: process.env.REDIS_PASSWORD || undefined,
+  connectionString: process.env.REDIS_URL || "redis://localhost:6379",
   maxRetriesPerRequest: null as null, // Required by BullMQ
   enableReadyCheck: false,
 };
