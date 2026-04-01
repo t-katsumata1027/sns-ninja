@@ -6,6 +6,7 @@
  * (Or via a process manager like PM2)
  */
 
+import "@/lib/env";
 import { Worker } from "bullmq";
 import { redisConnectionOptions, type PostPublishJobData, type DmReplyJobData, type CronDailyJobData, getCronDailyQueue } from "./client";
 import { postToX } from "@/lib/automation/x-poster";

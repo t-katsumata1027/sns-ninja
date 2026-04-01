@@ -3,13 +3,19 @@ import { Queue } from "bullmq";
 // BullMQ bundles its own ioredis. Pass connection options directly (not a Redis instance)
 // to avoid version incompatibility between standalone ioredis and BullMQ's bundled version.
 // BullMQ connection options using a single connection string
+if (!process.env.REDIS_URL) {
+  console.error("❌ CRITICAL: REDIS_URL is not defined in environment variables.");
+  process.exit(1);
+}
+
+console.log(`📡 Attempting to connect to Redis: ${process.env.REDIS_URL.split('@')[1] || 'URL format error'}`);
+
 const redisConnectionOptions = {
-  connectionString: process.env.REDIS_URL || "redis://localhost:6379",
-  maxRetriesPerRequest: null as null, // Required by BullMQ
+  connectionString: process.env.REDIS_URL,
+  maxRetriesPerRequest: null as null,
   enableReadyCheck: false,
 };
 
-// Export for use in worker.ts
 export { redisConnectionOptions };
 
 // Lazy initializers to avoid connection attempts during build time
